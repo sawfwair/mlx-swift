@@ -86,12 +86,16 @@ final class CompiledFunction: @unchecked (Sendable) {
 
         // note: this will use the cached compile (via the id)
         // but will be able to re-evaluate with fresh state if needed
-        evalLock.lock()
+        //
+        // PATCH(mere-run perf experiment): do not take the global evalLock
+        // here. A cache-hit apply only constructs graph nodes — the same thing
+        // every ordinary MLX op does without a lock — and a tracing call that
+        // re-enters eval takes the (recursive) evalLock itself. `self.lock`
+        // (held by call()) already serializes this compiled function.
         var compiled = mlx_closure_new()
         let compileStatus = mlx_detail_compile(&compiled, innerClosure, id, shapeless, [], 0)
         defer {
             mlx_closure_free(compiled)
-            evalLock.unlock()
         }
 
         // mlx_error was already dispatched on failure:
