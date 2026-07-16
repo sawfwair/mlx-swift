@@ -278,10 +278,9 @@ inline bool is_nax_available() {
     }
     auto& d = metal::device(mlx::core::Device::gpu);
     auto gen = d.get_architecture_gen();
-    // NAX steel-gemm/qmm miscomputes on M5-class gen-17 GPUs (wrong fp16 GEMM for
-    // M>=8,N>=8192 and quantized matmul for M>=64,N>=9216). Gate NAX to gen-18+ (A19+).
-    // Mirrors PrismML-Eng/mlx#4 in the mlx core; this flattened copy needs the same fix
-    // until the mlx submodule is bumped past #4 and regenerated via tools/update-mlx.sh.
+    // gen-17 desktop parts (M5-class, applegpu_g17*) compute incorrect
+    // steel-gemm and quantized-matmul results through the NAX path. Require
+    // gen-18+ until that path has an explicit correctness gate.
     can_use_nax &= gen >= 18;
     return can_use_nax;
   };
