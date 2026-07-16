@@ -1,14 +1,12 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.3;(experimentalCGen)
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 // Copyright © 2024 Apple Inc.
 
 import PackageDescription
 
-// Swift 6.3 toolchains select Package@swift-6.3.swift, which retains upstream's
-// experimental CUDA code-generation path. This baseline manifest keeps the
-// established CPU-on-Linux and Metal-on-Apple paths available to Swift 6.0.
-
 let noMetalCmlxExcludes = [
+    // Exclude Metal backend files, but keep no_metal.cpp for stubs
+    // "mlx/mlx/backend/metal/no_metal.cpp",
     "mlx/mlx/backend/metal/allocator.cpp",
     "mlx/mlx/backend/metal/binary.cpp",
     "mlx/mlx/backend/metal/compiled.cpp",
@@ -42,11 +40,13 @@ let noMetalCmlxExcludes = [
     "mlx/mlx/backend/metal/ternary.cpp",
     "mlx/mlx/backend/metal/unary.cpp",
     "mlx/mlx/backend/metal/utils.cpp",
-    "mlx/mlx/backend/metal/kernels",
-    "mlx/mlx/backend/metal/jit",
+    "mlx/mlx/backend/metal/kernels",  // Exclude kernels directory
+    "mlx/mlx/backend/metal/jit",  // Exclude jit directory
 ]
 
 let noCudaCmlxExcludes = [
+    // Exclude CUDA backend files, but keep no_cuda.cpp for stubs
+    // mlx/mlx/backend/cuda/no_cuda.cpp
     "mlx/mlx/backend/cuda/allocator.cpp",
     "mlx/mlx/backend/cuda/compiled.cpp",
     "mlx/mlx/backend/cuda/conv.cpp",
@@ -79,51 +79,133 @@ let noCudaCmlxExcludes = [
 ]
 
 #if os(Linux)
-    let platformExcludes: [String] = [
-        "framework",
-        "include-framework",
-        "metal-cpp",
-        "mlx/mlx/backend/gpu",
-        "mlx/mlx/backend/no_cpu",
-        "mlx/mlx/backend/cpu/gemms/bnns.cpp",
-        "mlx-conditional",
-        "mlx-c/mlx/c/metal.cpp",
-        "mlx-c/mlx/c/fast.cpp",
-    ] + noMetalCmlxExcludes + noCudaCmlxExcludes
+    let platformExcludes: [String]
+    let cxxSettings: [CXXSetting]
+    let linkerSettings: [LinkerSetting]
+    let mlxSwiftExcludes: [String]
 
-    let cxxSettings: [CXXSetting] = []
+    if Context.environment["SPM_CUDA"] != "0" {
+        // Linux with CUDA
 
-    let linkerSettings: [LinkerSetting] = [
-        .linkedLibrary("gfortran", .when(platforms: [.linux])),
-        .linkedLibrary("blas", .when(platforms: [.linux])),
-        .linkedLibrary("lapack", .when(platforms: [.linux])),
-        .linkedLibrary("openblas", .when(platforms: [.linux])),
-    ]
+        platformExcludes =
+            [
+                "framework",
+                "include-framework",
+                "metal-cpp",
 
-    let mlxSwiftExcludes: [String] = [
-        "GPU+Metal.swift",
-        "GPU+CUDA.swift",
-        "MLXArray+Metal.swift",
-        "MLXFast.swift",
-        "MLXFastKernel.swift",
-    ]
+                "mlx/mlx/backend/no_gpu",
+                "mlx/mlx/backend/cuda/no_cuda.cpp",
+                "mlx/mlx/backend/cuda/quantized/no_qqmm_impl.cpp",
+                "mlx/mlx/backend/cuda/gemms/cublas_gemm_batched_12_0.cpp",
+                "mlx/mlx/backend/no_cpu",  // Exclude no_cpu backend on Linux, use cpu instead
+                "mlx/mlx/backend/cpu/gemms/bnns.cpp",  // macOS Accelerate version
+                "mlx-conditional",
+                "mlx-c/mlx/c/metal.cpp",
+
+                "mlx/mlx/backend/cuda/delayload.cpp",  // For Windows
+                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n16_m1.cu",
+                "mlx/mlx/backend/cuda/quantized/qmm/qmv.cu",
+                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n32_m1.cu",
+                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90.cuh",
+                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n64_m2.cu",
+                "mlx/mlx/backend/cuda/quantized/qmm/qmm.h",
+                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n256_m2.cu",
+                "mlx/mlx/backend/cuda/quantized/qmm/qmm.cu",
+                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n128_m2.cu",
+                "mlx/mlx/backend/cuda/quantized/qmm/fp_qmv.cu",
+            ] + noMetalCmlxExcludes
+
+        cxxSettings = [
+            .unsafeFlags(["-I/usr/local/cuda/include"]),
+            .unsafeFlags(["-I/usr/local/cuda/include/cccl"]),
+            .define("MLX_CCCL_DIR", to: "\"/usr/local/cuda/include/cccl\""),
+        ]
+
+        linkerSettings = [
+            .linkedLibrary("gfortran", .when(platforms: [.linux])),
+            .linkedLibrary("blas", .when(platforms: [.linux])),
+            .linkedLibrary("lapack", .when(platforms: [.linux])),
+            .linkedLibrary("openblas", .when(platforms: [.linux])),
+            .unsafeFlags(["-L/usr/local/cuda/lib64"]),
+            .unsafeFlags(["-L/usr/local/cuda/lib64/stubs"]),
+            .linkedLibrary("cudnn"),
+            .linkedLibrary("cublas"),
+            .linkedLibrary("cublasLt"),
+            .linkedLibrary("nvrtc"),
+            .linkedLibrary("cudart"),
+            .linkedLibrary("cuda"),
+        ]
+
+        mlxSwiftExcludes = [
+            "GPU+Metal.swift",
+            "MLXArray+Metal.swift",
+        ]
+    } else {
+        // Linux without CUDA (CPU only)
+
+        platformExcludes =
+            [
+                "framework",
+                "include-framework",
+                "metal-cpp",
+
+                "mlx/mlx/backend/gpu",  // Exclude GPU backend on Linux, use no_gpu instead
+                "mlx/mlx/backend/no_cpu",  // Exclude no_cpu backend on Linux, use cpu instead
+                "mlx/mlx/backend/cpu/gemms/bnns.cpp",  // macOS Accelerate version
+                "mlx-conditional",
+                "mlx-c/mlx/c/metal.cpp",
+
+                "mlx-c/mlx/c/fast.cpp",  // Exclude on Linux - calls metal_kernel unconditionally
+
+            ] + noMetalCmlxExcludes + noCudaCmlxExcludes
+
+        cxxSettings = []
+
+        linkerSettings = [
+            .linkedLibrary("gfortran", .when(platforms: [.linux])),
+            .linkedLibrary("blas", .when(platforms: [.linux])),
+            .linkedLibrary("lapack", .when(platforms: [.linux])),
+            .linkedLibrary("openblas", .when(platforms: [.linux])),
+        ]
+
+        mlxSwiftExcludes = [
+            "GPU+Metal.swift",
+            "GPU+CUDA.swift",
+            "MLXArray+Metal.swift",
+            "MLXFast.swift",
+            "MLXFastKernel.swift",
+        ]
+    }
 #else
-    let platformExcludes: [String] = [
-        "mlx/mlx/backend/cpu/compiled.cpp",
-        "mlx/mlx/backend/no_gpu",
-        "mlx/mlx/backend/no_cpu",
-        "mlx/mlx/backend/metal/no_metal.cpp",
-        "mlx/mlx/backend/cpu/gemms/simd_fp16.cpp",
-        "mlx/mlx/backend/cpu/gemms/simd_bf16.cpp",
-    ] + noCudaCmlxExcludes
+    // Apple's platforms with Metal
+
+    let platformExcludes: [String] =
+        [
+            "mlx/mlx/backend/cpu/compiled.cpp",
+
+            // opt-out of these backends (using metal)
+            "mlx/mlx/backend/no_gpu",
+            "mlx/mlx/backend/no_cpu",
+            "mlx/mlx/backend/metal/no_metal.cpp",
+
+            // bnns instead of simd (accelerate)
+            "mlx/mlx/backend/cpu/gemms/simd_fp16.cpp",
+            "mlx/mlx/backend/cpu/gemms/simd_bf16.cpp",
+        ] + noCudaCmlxExcludes
 
     let cxxSettings: [CXXSetting] = [
         .headerSearchPath("metal-cpp"),
+
         .define("MLX_USE_ACCELERATE"),
         .define("ACCELERATE_NEW_LAPACK"),
         .define("_METAL_"),
         .define("SWIFTPM_BUNDLE", to: "\"mlx-swift_Cmlx\""),
         .define("METAL_PATH", to: "\"default.metallib\""),
+
+        // Xcode 26.5 clang enforces consteval strictly enough that fmt
+        // 10.2.1's FMT_STRING compile-time checks fail to parse; define
+        // FMT_CONSTEVAL to empty to disable consteval (fmt falls back to
+        // runtime checking) until fmt is bumped.
         .define("FMT_CONSTEVAL", to: ""),
     ]
 
@@ -134,7 +216,7 @@ let noCudaCmlxExcludes = [
     ]
 
     let mlxSwiftExcludes: [String] = [
-        "GPU+CUDA.swift",
+        "GPU+CUDA.swift"
     ]
 #endif
 
@@ -142,17 +224,28 @@ let cmlx = Target.target(
     name: "Cmlx",
     path: "Source/Cmlx",
     exclude: platformExcludes + [
+        // vendor docs
         "vendor-README.md",
+
+        // example code + mlx-c distributed
         "mlx-c/examples",
         "mlx-c/mlx/c/distributed.cpp",
         "mlx-c/mlx/c/distributed_group.cpp",
+
+        // vendored library, include header only
         "json",
+
+        // vendored library
         "fmt/test",
         "fmt/doc",
         "fmt/support",
         "fmt/src/os.cc",
         "fmt/src/fmt.cc",
+
+        // these are selected conditionally
         "mlx/mlx/backend/no_cpu/compiled.cpp",
+
+        // mlx files that are not part of the build
         "mlx/ACKNOWLEDGMENTS.md",
         "mlx/CMakeLists.txt",
         "mlx/CODE_OF_CONDUCT.md",
@@ -169,11 +262,17 @@ let cmlx = Target.target(
         "mlx/python",
         "mlx/setup.py",
         "mlx/tests",
+
+        // build variants (we are opting _out_ of these)
         "mlx/mlx/io/no_safetensors.cpp",
         "mlx/mlx/io/gguf.cpp",
         "mlx/mlx/io/gguf_quants.cpp",
+
+        // see PrepareMetalShaders -- don't build the kernels in place
         "mlx/mlx/backend/metal/kernels",
         "mlx/mlx/backend/metal/nojit_kernels.cpp",
+
+        // do not build distributed support (yet)
         "mlx/mlx/distributed/mpi/mpi.cpp",
         "mlx/mlx/distributed/ring/ring.cpp",
         "mlx/mlx/distributed/nccl/nccl.cpp",
@@ -195,18 +294,24 @@ let cmlx = Target.target(
         .headerSearchPath("fmt/include"),
         .define("MLX_VERSION", to: "\"0.31.1\""),
     ],
-    linkerSettings: linkerSettings
+    linkerSettings: linkerSettings,
+    plugins: [
+        .plugin(name: "CudaBuild")
+    ],
 )
 
 let package = Package(
     name: "mlx-swift",
+
     platforms: [
         .macOS("14.0"),
         .iOS(.v17),
         .tvOS(.v17),
         .visionOS(.v1),
     ],
+
     products: [
+        // main targets
         .library(name: "MLX", targets: ["MLX"]),
         .library(name: "MLXRandom", targets: ["MLXRandom"]),
         .library(name: "MLXNN", targets: ["MLXNN"]),
@@ -216,7 +321,9 @@ let package = Package(
         .library(name: "MLXFast", targets: ["MLXFast"]),
     ],
     dependencies: [
+        // for Complex type
         .package(url: "https://github.com/apple/swift-numerics", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
     ],
     targets: [
         cmlx,
@@ -224,6 +331,7 @@ let package = Package(
             name: "CmlxTests",
             dependencies: ["Cmlx"]
         ),
+
         .target(
             name: "MLX",
             dependencies: [
@@ -232,57 +340,62 @@ let package = Package(
             ],
             exclude: mlxSwiftExcludes,
             swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency"),
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
         .target(
             name: "MLXRandom",
             dependencies: ["MLX"],
             swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency"),
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
         .target(
             name: "MLXFast",
             dependencies: ["MLX", "Cmlx"],
             swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency"),
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
         .target(
             name: "MLXNN",
             dependencies: ["MLX"],
             swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency"),
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
         .target(
             name: "MLXOptimizers",
             dependencies: ["MLX", "MLXNN"],
             swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency"),
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
         .target(
             name: "MLXFFT",
             dependencies: ["MLX"],
             swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency"),
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
         .target(
             name: "MLXLinalg",
             dependencies: ["MLX"],
             swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency"),
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
+
         .testTarget(
             name: "MLXTests",
             dependencies: [
                 "MLX", "MLXNN", "MLXOptimizers",
             ]
         ),
+
+        // ------
+        // Example programs
+
         .executableTarget(
             name: "Example1",
             dependencies: ["MLX"],
@@ -307,6 +420,20 @@ let package = Package(
             path: "Source/Examples",
             sources: ["CustomFunctionExampleSimple.swift"]
         ),
+        .executableTarget(
+            name: "encuda",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ],
+            path: "Source/Encuda",
+        ),
+        .plugin(
+            name: "CudaBuild",
+            capability: .buildTool(),
+            dependencies: [
+                .target(name: "encuda")
+            ],
+        ),
     ],
     cxxLanguageStandard: .gnucxx20
 )
@@ -314,6 +441,7 @@ let package = Package(
 if Context.environment["MLX_SWIFT_BUILD_DOC"] == "1"
     || Context.environment["SPI_GENERATE_DOCS"] == "1"
 {
+    // docc builder
     package.dependencies.append(
         .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.3.0")
     )
