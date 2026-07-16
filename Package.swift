@@ -88,7 +88,6 @@ let noCudaCmlxExcludes = [
         "mlx/mlx/backend/cpu/gemms/bnns.cpp",
         "mlx-conditional",
         "mlx-c/mlx/c/metal.cpp",
-        "mlx-c/mlx/c/fast.cpp",
     ] + noMetalCmlxExcludes + noCudaCmlxExcludes
 
     let cxxSettings: [CXXSetting] = []
@@ -104,8 +103,6 @@ let noCudaCmlxExcludes = [
         "GPU+Metal.swift",
         "GPU+CUDA.swift",
         "MLXArray+Metal.swift",
-        "MLXFast.swift",
-        "MLXFastKernel.swift",
     ]
 #else
     let platformExcludes: [String] = [
