@@ -1,6 +1,18 @@
 import MLX
 import XCTest
 
+private actor StreamConcurrencyHarness {
+    func evaluateGraph() async -> [Float] {
+        await Stream.withNewDefaultStream {
+            let input = MLXArray([Float32(1), 2, 3])
+            let output = input * 2
+            await Task.yield()
+            MLX.eval(output)
+            return output.asArray(Float.self)
+        }
+    }
+}
+
 final class StreamConcurrencyTests: XCTestCase {
     func testAsyncDefaultStreamGraphCanEvaluateOnDetachedThread() async {
         let graph = await Stream.withNewDefaultStream {
@@ -15,6 +27,11 @@ final class StreamConcurrencyTests: XCTestCase {
             return graph.asArray(Float.self)
         }.value
 
+        XCTAssertEqual(values, [2, 4, 6])
+    }
+
+    func testAsyncDefaultStreamPreservesCallerActorIsolation() async {
+        let values = await StreamConcurrencyHarness().evaluateGraph()
         XCTAssertEqual(values, [2, 4, 6])
     }
 }
