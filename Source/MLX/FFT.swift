@@ -25,7 +25,8 @@ public enum MLXFFT {
         var result = mlx_array_new()
 
         mlx_fft_fftn(
-            &result, array.ctx, [(n ?? array.dim(axis)).int32], 1, [axis.int32], 1, stream.ctx)
+            &result, array.ctx, [(n ?? array.dim(axis)).int32], 1, [axis.int32], 1,
+            MLX_FFT_NORM_BACKWARD, stream.ctx)
         return MLXArray(result)
     }
 
@@ -45,7 +46,9 @@ public enum MLXFFT {
         _ array: MLXArray, n: Int? = nil, axis: Int = -1, stream: StreamOrDevice = .default
     ) -> MLXArray {
         var result = mlx_array_new()
-        mlx_fft_ifft(&result, array.ctx, (n ?? array.dim(axis)).int32, axis.int32, stream.ctx)
+        mlx_fft_ifft(
+            &result, array.ctx, (n ?? array.dim(axis)).int32, axis.int32,
+            MLX_FFT_NORM_BACKWARD, stream.ctx)
         return MLXArray(result)
     }
 
@@ -108,28 +111,32 @@ public enum MLXFFT {
             // both supplied
 
             mlx_fft_fft2(
-                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else if let axes {
             // no n, compute from dim()
             let n = axes.map { array.dim($0) }
 
             mlx_fft_fft2(
-                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else if let s {
             // axes are the rightmost dimensions matching the number of dimensions of n
             let axes = Array(-s.count ..< 0)
 
             mlx_fft_fft2(
-                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else {
             let axes = Array(0 ..< array.ndim)
             let n = axes.map { array.dim($0) }
 
             mlx_fft_fft2(
-                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         }
     }
@@ -155,28 +162,32 @@ public enum MLXFFT {
             // both supplied
 
             mlx_fft_ifft2(
-                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else if let axes {
             // no n, compute from dim()
             let n = axes.map { array.dim($0) }
 
             mlx_fft_ifft2(
-                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else if let s {
             // axes are the rightmost dimensions matching the number of dimensions of n
             let axes = Array(-s.count ..< 0)
 
             mlx_fft_ifft2(
-                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else {
             let axes = Array(0 ..< array.ndim)
             let n = axes.map { array.dim($0) }
 
             mlx_fft_ifft2(
-                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         }
     }
@@ -201,7 +212,8 @@ public enum MLXFFT {
     ) -> MLXArray {
         var result = mlx_array_new()
         mlx_fft_rfftn(
-            &result, array.ctx, [(n ?? array.dim(axis)).int32], 1, [axis.int32], 1, stream.ctx)
+            &result, array.ctx, [(n ?? array.dim(axis)).int32], 1, [axis.int32], 1,
+            MLX_FFT_NORM_BACKWARD, stream.ctx)
         return MLXArray(result)
     }
 
@@ -225,7 +237,8 @@ public enum MLXFFT {
     ) -> MLXArray {
         let n = n ?? (array.dim(axis) - 1) * 2
         var result = mlx_array_new()
-        mlx_fft_irfft(&result, array.ctx, n.int32, axis.int32, stream.ctx)
+        mlx_fft_irfft(
+            &result, array.ctx, n.int32, axis.int32, MLX_FFT_NORM_BACKWARD, stream.ctx)
         return MLXArray(result)
     }
 
@@ -301,28 +314,32 @@ public enum MLXFFT {
             // both supplied
 
             mlx_fft_rfft2(
-                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else if let axes {
             // no n, compute from dim()
             let n = axes.map { array.dim($0) }
 
             mlx_fft_rfft2(
-                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else if let s {
             // axes are the rightmost dimensions matching the number of dimensions of n
             let axes = Array(-s.count ..< 0)
 
             mlx_fft_rfft2(
-                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else {
             let axes = Array(0 ..< array.ndim)
             let n = axes.map { array.dim($0) }
 
             mlx_fft_rfft2(
-                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         }
     }
@@ -353,7 +370,8 @@ public enum MLXFFT {
             // both supplied
 
             mlx_fft_irfft2(
-                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else if let axes {
             // no n, compute from dim()
@@ -361,14 +379,16 @@ public enum MLXFFT {
             n[n.count - 1] = (n[n.count - 1] - 1) * 2
 
             mlx_fft_irfft2(
-                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else if let s {
             // axes are the rightmost dimensions matching the number of dimensions of n
             let axes = Array(-s.count ..< 0)
 
             mlx_fft_irfft2(
-                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, s.asInt32, s.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         } else {
             let axes = Array(0 ..< array.ndim)
@@ -376,7 +396,8 @@ public enum MLXFFT {
             n[n.count - 1] = (n[n.count - 1] - 1) * 2
 
             mlx_fft_irfft2(
-                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count, stream.ctx)
+                &result, array.ctx, n.asInt32, n.count, axes.asInt32, axes.count,
+                MLX_FFT_NORM_BACKWARD, stream.ctx)
             return MLXArray(result)
         }
     }

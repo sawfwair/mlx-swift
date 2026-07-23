@@ -7,6 +7,7 @@
 #include <variant>
 
 #include <Cmlx/mlx-api.h>
+#include <Cmlx/mlx-backend-common-metal_kernel.h>
 #include <Cmlx/mlx-utils.h>
 
 namespace mlx::core::fast {
@@ -76,7 +77,8 @@ MLX_API CustomKernelFunction metal_kernel(
     const std::string& source,
     const std::string& header = "",
     bool ensure_row_contiguous = true,
-    bool atomic_outputs = false);
+    bool atomic_outputs = false,
+    const CompileOptions& compile_options = {});
 
 MLX_API CustomKernelFunction cuda_kernel(
     const std::string& name,
