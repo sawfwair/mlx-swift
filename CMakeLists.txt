@@ -48,6 +48,8 @@ FetchContent_Declare(
   SOURCE_DIR
   "${MLX_SWIFT_MLX_C_SOURCE_DIR}")
 FetchContent_MakeAvailable(mlx-c)
+target_sources(
+  mlxc PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source/Cmlx/mlx-swift-stream.cpp")
 
 # swift-numerics
 set(swift_numerics_patch git apply

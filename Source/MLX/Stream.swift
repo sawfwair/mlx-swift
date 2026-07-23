@@ -110,7 +110,10 @@ public final class Stream: @unchecked Sendable, Equatable {
         device: Device? = nil, _ body: () async throws -> R
     ) async rethrows -> R {
         let device = device ?? Device.defaultDevice()
-        return try await $defaultStream.withValue(Stream(device), operation: body)
+        return try await $defaultStream.withValue(
+            Stream(threadUnsafe: device),
+            operation: body
+        )
     }
 
     init(_ ctx: mlx_stream) {
@@ -138,6 +141,14 @@ public final class Stream: @unchecked Sendable, Equatable {
     public init(_ device: Device) {
         self.ctx = evalLock.withLock {
             mlx_stream_new_device(device.ctx)
+        }
+    }
+
+    /// A stream for a sequential graph whose Swift task may resume on a
+    /// different executor thread after suspension.
+    private init(threadUnsafe device: Device) {
+        self.ctx = evalLock.withLock {
+            mlx_stream_new_thread_unsafe_device(device.ctx)
         }
     }
 
