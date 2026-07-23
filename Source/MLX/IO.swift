@@ -214,7 +214,7 @@ private func new_mlx_io_vtable_dataIO() -> mlx_io_vtable {
         case SEEK_CUR:
             state.offset += Int(offset)
         case SEEK_END:
-            state.offset = state.offset - Int(offset)
+            state.offset = state.data.count + Int(offset)
         default:
             break
         }
@@ -237,15 +237,22 @@ private func new_mlx_io_vtable_dataIO() -> mlx_io_vtable {
             _ = state.data.withUnsafeBytes { buffer in
                 memcpy(data, buffer.baseAddress!.advanced(by: offset), n)
             }
-            state.offset = offset
         }
 
     } write: { ptr, data, n in
         let state = Unmanaged<IOState>.fromOpaque(ptr!).takeUnretainedValue()
+        guard let data else { return }
 
-        let buffer = UnsafeBufferPointer(start: data, count: n)
-        state.data.append(buffer)
-        state.offset += n
+        let end = state.offset + n
+        if end > state.data.count {
+            state.data.append(
+                contentsOf: repeatElement(UInt8.zero, count: end - state.data.count)
+            )
+        }
+        _ = state.data.withUnsafeMutableBytes { buffer in
+            memcpy(buffer.baseAddress!.advanced(by: state.offset), data, n)
+        }
+        state.offset = end
 
     } label: { ptr in
         UnsafeRawPointer(label.utf8Start).assumingMemoryBound(to: Int8.self)
