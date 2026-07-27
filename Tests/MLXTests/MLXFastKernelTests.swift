@@ -72,6 +72,48 @@ class MLXFastKernelTests: XCTestCase {
         XCTAssertTrue(allClose(out[1], full([3, 2], values: -2)).all().item())
     }
 
+    func testCustomKernelFPQuantizedHeaders() {
+        let kernel = MLXFast.metalKernel(
+            name: "fp_quantized_headers",
+            inputNames: ["input"],
+            outputNames: ["output"],
+            source: """
+                    output[0] = get_pack_factor<8, 4>();
+                """,
+            header: "// MLX_INCLUDE_FP_QUANTIZED_HEADERS\n"
+        )
+        let output = kernel(
+            [MLXArray([0])],
+            grid: (1, 1, 1),
+            threadGroup: (1, 1, 1),
+            outputShapes: [[1]],
+            outputDTypes: [.uint32]
+        )[0]
+
+        XCTAssertEqual(output.item(UInt32.self), 2)
+    }
+
+    func testCustomKernelAffineQuantizedHeaders() {
+        let kernel = MLXFast.metalKernel(
+            name: "affine_quantized_headers",
+            inputNames: ["input"],
+            outputNames: ["output"],
+            source: """
+                    output[0] = get_pack_factor<8, 32>();
+                """,
+            header: "// MLX_INCLUDE_AFFINE_QUANTIZED_HEADERS\n"
+        )
+        let output = kernel(
+            [MLXArray([0])],
+            grid: (1, 1, 1),
+            threadGroup: (1, 1, 1),
+            outputShapes: [[1]],
+            outputDTypes: [.uint32]
+        )[0]
+
+        XCTAssertEqual(output.item(UInt32.self), 4)
+    }
+
     func testFastSDPA() {
         // https://github.com/ml-explore/mlx-swift/issues/172
         // this will just make sure the MLXFast.scaled_dot_product_attention is
