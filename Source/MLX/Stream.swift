@@ -96,6 +96,8 @@ public final class Stream: @unchecked Sendable, Equatable {
     }
 
     @TaskLocal static var defaultStream: Stream?
+    @TaskLocal static var defaultCPUStream: Stream?
+    @TaskLocal static var defaultGPUStream: Stream?
 
     /// Set the ``StreamOrDevice/default`` scoped to a Task.
     public static func withNewDefaultStream<R>(device: Device? = nil, _ body: () throws -> R)
@@ -112,10 +114,22 @@ public final class Stream: @unchecked Sendable, Equatable {
         _ body: () async throws -> R
     ) async rethrows -> R {
         let device = device ?? Device.defaultDevice()
-        return try await $defaultStream.withValue(
-            Stream(threadUnsafe: device),
-            operation: body
-        )
+        let cpuStream = Stream(threadUnsafe: .cpu)
+        let gpuStream = Stream(threadUnsafe: .gpu)
+        let selectedStream: Stream
+        switch device.deviceType {
+        case .cpu:
+            selectedStream = cpuStream
+        case .gpu:
+            selectedStream = gpuStream
+        default:
+            fatalError("Unexpected device type: \(device)")
+        }
+        return try await $defaultCPUStream.withValue(cpuStream) {
+            try await $defaultGPUStream.withValue(gpuStream) {
+                try await $defaultStream.withValue(selectedStream, operation: body)
+            }
+        }
     }
 
     init(_ ctx: mlx_stream) {
@@ -169,8 +183,8 @@ public final class Stream: @unchecked Sendable, Equatable {
 
     static public func defaultStream(_ device: Device) -> Stream {
         switch device.deviceType {
-        case .cpu: .cpu
-        case .gpu: .gpu
+        case .cpu: defaultCPUStream ?? .cpu
+        case .gpu: defaultGPUStream ?? .gpu
         default: fatalError("Unexpected device type: \(device)")
         }
     }
