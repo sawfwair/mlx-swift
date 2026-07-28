@@ -58,6 +58,27 @@ final class StreamConcurrencyTests: XCTestCase {
         XCTAssertEqual(values.1, [3, 3, 3])
     }
 
+    #if os(Linux)
+        func testAsyncCPUStreamDoesNotRequireGPU() async {
+            let graph = await Stream.withNewDefaultStream(device: .cpu) {
+                let output = multiply(
+                    ones([3], type: Float.self, stream: .cpu),
+                    4,
+                    stream: .cpu
+                )
+                await Task.yield()
+                return output
+            }
+
+            let values = await Task.detached {
+                MLX.eval(graph)
+                return graph.asArray(Float.self)
+            }.value
+
+            XCTAssertEqual(values, [4, 4, 4])
+        }
+    #endif
+
     func testAsyncDefaultStreamPreservesCallerActorIsolation() async {
         let values = await StreamConcurrencyHarness().evaluateGraph()
         XCTAssertEqual(values, [2, 4, 6])
