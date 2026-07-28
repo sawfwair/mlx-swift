@@ -115,13 +115,13 @@ public final class Stream: @unchecked Sendable, Equatable {
     ) async rethrows -> R {
         let device = device ?? Device.defaultDevice()
         let cpuStream = Stream(threadUnsafe: .cpu)
-        let gpuStream = Stream(threadUnsafe: .gpu)
+        let gpuStream = Stream.threadUnsafeStreamIfAvailable(.gpu)
         let selectedStream: Stream
         switch device.deviceType {
         case .cpu:
             selectedStream = cpuStream
         case .gpu:
-            selectedStream = gpuStream
+            selectedStream = gpuStream ?? Stream(threadUnsafe: .gpu)
         default:
             fatalError("Unexpected device type: \(device)")
         }
@@ -166,6 +166,12 @@ public final class Stream: @unchecked Sendable, Equatable {
         self.ctx = evalLock.withLock {
             mlx_stream_new_thread_unsafe_device(device.ctx)
         }
+    }
+
+    private static func threadUnsafeStreamIfAvailable(_ device: Device) -> Stream? {
+        var available = false
+        mlx_device_is_available(&available, device.ctx)
+        return available ? Stream(threadUnsafe: device) : nil
     }
 
     deinit {
