@@ -1111,6 +1111,18 @@ template <
     dispatch_bool(align_M || !is_unaligned_sm, [&](auto kAlignedM) {
       dispatch_bool(align_N || !is_unaligned_bn, [&](auto kAlignedN) {
         for (int k = 0; k < K_it; k++) {
+          // Load this immutable activation tile before staging the weights so
+          // its device reads overlap the two unchanged threadgroup barriers.
+          // The MMA traversal and accumulator chain below remain identical.
+          NAXTile<T, TM, TK> Atile[BK / SK];
+          STEEL_PRAGMA_UNROLL
+          for (int kk1 = 0; kk1 < BK; kk1 += SK) {
+            if constexpr (kAlignedM.value) {
+              Atile[kk1 / SK].load(xn + kk1, K);
+            } else {
+              Atile[kk1 / SK].load_rows(xn + kk1, K, sgp_sm);
+            }
+          }
           threadgroup_barrier(mem_flags::mem_threadgroup);
           if constexpr (kAlignedN.value) {
             loader_w.load_unsafe();
@@ -1123,16 +1135,9 @@ template <
 
           STEEL_PRAGMA_NO_UNROLL
           for (int kk1 = 0; kk1 < BK; kk1 += SK) {
-            NAXTile<T, TM, TK> Atile;
             NAXTile<Wtype, BR, BC> Btile;
 
             volatile int compiler_barrier;
-
-            if constexpr (kAlignedM.value) {
-              Atile.load(xn + kk1, K);
-            } else {
-              Atile.load_safe(xn + kk1, K, short2(SK, sgp_sm));
-            }
 
             if constexpr (transpose) {
               Btile.template load<Wtype, BK_padded, 1>(
@@ -1144,7 +1149,7 @@ template <
 
             tile_matmad_nax(
                 Dtile,
-                Atile,
+                Atile[kk1 / SK],
                 metal::bool_constant<false>{},
                 Btile,
                 metal::bool_constant<transpose>{});
