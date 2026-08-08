@@ -1468,6 +1468,16 @@ template <
     kb_min_causal = (q_min / BK);
   }
 
+  // K blocks ending at or below this simdgroup's first query row need no
+  // causal predicate: every select would keep the already-computed score.
+  // Restrict the tighter bound to the no-array-mask path so its proof rests
+  // only on the causal relation.
+  int sg_kb_min_causal = kb_min_causal;
+  if (do_causal && !has_mask) {
+    int sg_q_min = tid.x * BQ + params->qL_off + int(tm);
+    sg_kb_min_causal = max(0, sg_q_min + 1) / BK;
+  }
+
   const bool is_last_bq = int(tid.x) == (params->NQ_aligned);
   // const bool is_last_tq = int(simd_group_id) >= (params->qL_rem / UQ);
   const bool is_last_q = is_last_bq;
@@ -1562,7 +1572,7 @@ template <
     }
 
     // Mask out if causal
-    if (do_causal && kb >= kb_min_causal) {
+    if (do_causal && kb >= sg_kb_min_causal) {
       constexpr auto neg_inf = Limits<AccumType>::finite_min;
 
       const int base_row = tid.x * BQ + params->qL_off + tm;
