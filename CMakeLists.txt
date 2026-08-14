@@ -26,12 +26,30 @@ if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
 
+# Keep CMake builds on the exact sources pinned by SwiftPM. In particular, the
+# Linux CUDA bridge must not let mlx-c fetch its older default MLX release.
+set(MLX_SWIFT_MLX_SOURCE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/Cmlx/mlx"
+    CACHE PATH "Path to the MLX source pinned by mlx-swift")
+set(MLX_SWIFT_MLX_C_SOURCE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/Cmlx/mlx-c"
+    CACHE PATH "Path to the mlx-c source pinned by mlx-swift")
+if(NOT EXISTS "${MLX_SWIFT_MLX_SOURCE_DIR}/CMakeLists.txt"
+   OR NOT EXISTS "${MLX_SWIFT_MLX_C_SOURCE_DIR}/CMakeLists.txt")
+  message(
+    FATAL_ERROR
+      "mlx-swift submodules are missing; run git submodule update --init")
+endif()
+set(FETCHCONTENT_SOURCE_DIR_MLX "${MLX_SWIFT_MLX_SOURCE_DIR}")
+
 # mlx-c
 FetchContent_Declare(
   mlx-c
-  GIT_REPOSITORY "https://github.com/ml-explore/mlx-c.git"
-  GIT_TAG "v0.6.0")
+  SOURCE_DIR
+  "${MLX_SWIFT_MLX_C_SOURCE_DIR}")
 FetchContent_MakeAvailable(mlx-c)
+target_sources(
+  mlxc PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source/Cmlx/mlx-swift-stream.cpp")
 
 # swift-numerics
 set(swift_numerics_patch git apply

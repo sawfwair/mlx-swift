@@ -43,16 +43,20 @@ public struct StreamOrDevice: Sendable, CustomStringConvertible, Equatable {
     }
 
     /// The ``Stream/defaultStream(_:)`` on the ``Device/cpu``
-    public static let cpu = device(.cpu)
+    public static var cpu: StreamOrDevice {
+        device(.cpu)
+    }
 
     /// The ``Stream/defaultStream(_:)`` on the ``Device/gpu``
     ///
     /// ### See Also
     /// - ``GPU``
-    public static let gpu = device(.gpu)
+    public static var gpu: StreamOrDevice {
+        device(.gpu)
+    }
 
     public static func stream(_ stream: Stream) -> StreamOrDevice {
-        StreamOrDevice(Device.defaultStream())
+        StreamOrDevice(stream)
     }
 
     /// Internal context -- used with Cmlx calls.
@@ -83,10 +87,17 @@ public final class Stream: @unchecked Sendable, Equatable {
 
     let ctx: mlx_stream
 
-    public static let gpu = Stream(mlx_default_gpu_stream_new())
-    public static let cpu = Stream(mlx_default_cpu_stream_new())
+    public static var gpu: Stream {
+        Stream(mlx_default_gpu_stream_new())
+    }
+
+    public static var cpu: Stream {
+        Stream(mlx_default_cpu_stream_new())
+    }
 
     @TaskLocal static var defaultStream: Stream?
+    @TaskLocal static var defaultCPUStream: Stream?
+    @TaskLocal static var defaultGPUStream: Stream?
 
     /// Set the ``StreamOrDevice/default`` scoped to a Task.
     public static func withNewDefaultStream<R>(device: Device? = nil, _ body: () throws -> R)
@@ -98,10 +109,27 @@ public final class Stream: @unchecked Sendable, Equatable {
 
     /// Set the ``StreamOrDevice/default`` scoped to a Task.
     public static func withNewDefaultStream<R>(
-        device: Device? = nil, _ body: () async throws -> R
+        device: Device? = nil,
+        isolation _: isolated (any Actor)? = #isolation,
+        _ body: () async throws -> R
     ) async rethrows -> R {
         let device = device ?? Device.defaultDevice()
-        return try await $defaultStream.withValue(Stream(device), operation: body)
+        let cpuStream = Stream(threadUnsafe: .cpu)
+        let gpuStream = Stream.threadUnsafeStreamIfAvailable(.gpu)
+        let selectedStream: Stream
+        switch device.deviceType {
+        case .cpu:
+            selectedStream = cpuStream
+        case .gpu:
+            selectedStream = gpuStream ?? Stream(threadUnsafe: .gpu)
+        default:
+            fatalError("Unexpected device type: \(device)")
+        }
+        return try await $defaultCPUStream.withValue(cpuStream) {
+            try await $defaultGPUStream.withValue(gpuStream) {
+                try await $defaultStream.withValue(selectedStream, operation: body)
+            }
+        }
     }
 
     init(_ ctx: mlx_stream) {
@@ -132,6 +160,20 @@ public final class Stream: @unchecked Sendable, Equatable {
         }
     }
 
+    /// A stream for a sequential graph whose Swift task may resume on a
+    /// different executor thread after suspension.
+    private init(threadUnsafe device: Device) {
+        self.ctx = evalLock.withLock {
+            mlx_stream_new_thread_unsafe_device(device.ctx)
+        }
+    }
+
+    private static func threadUnsafeStreamIfAvailable(_ device: Device) -> Stream? {
+        var available = false
+        mlx_device_is_available(&available, device.ctx)
+        return available ? Stream(threadUnsafe: device) : nil
+    }
+
     deinit {
         _ = evalLock.withLock {
             mlx_stream_free(ctx)
@@ -147,8 +189,8 @@ public final class Stream: @unchecked Sendable, Equatable {
 
     static public func defaultStream(_ device: Device) -> Stream {
         switch device.deviceType {
-        case .cpu: .cpu
-        case .gpu: .gpu
+        case .cpu: defaultCPUStream ?? .cpu
+        case .gpu: defaultGPUStream ?? .gpu
         default: fatalError("Unexpected device type: \(device)")
         }
     }

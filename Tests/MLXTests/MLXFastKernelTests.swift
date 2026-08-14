@@ -72,6 +72,90 @@ class MLXFastKernelTests: XCTestCase {
         XCTAssertTrue(allClose(out[1], full([3, 2], values: -2)).all().item())
     }
 
+    func testCustomKernelFPQuantizedHeaders() {
+        let kernel = MLXFast.metalKernel(
+            name: "fp_quantized_headers",
+            inputNames: ["input"],
+            outputNames: ["output"],
+            source: """
+                    output[0] = get_pack_factor<8, 4>();
+                """,
+            header: "// MLX_INCLUDE_FP_QUANTIZED_HEADERS\n"
+        )
+        let output = kernel(
+            [MLXArray([0])],
+            grid: (1, 1, 1),
+            threadGroup: (1, 1, 1),
+            outputShapes: [[1]],
+            outputDTypes: [.uint32]
+        )[0]
+
+        XCTAssertEqual(output.item(UInt32.self), 2)
+    }
+
+    func testNVFP4PackedDecodeMatchesScalarHeaderPath() {
+        let kernel = MLXFast.metalKernel(
+            name: "nvfp4_packed_decode_matches_scalar",
+            inputNames: ["packed", "scales"],
+            outputNames: ["mismatch"],
+            source: """
+                    uint gid = thread_position_in_grid.x;
+                    uint8_t packed_byte = packed[gid & 255];
+                    uint8_t scale_byte = scales[gid >> 8];
+                    uint32_t codes = uint32_t(packed_byte) * 0x01010101u;
+
+                    bfloat fast[8];
+                    fp4nv_decode8<bfloat>(
+                        codes, fp4nv_scale_x16384(scale_byte), fast);
+
+                    bfloat scale = dequantize_scale<bfloat, 16>(scale_byte);
+                    uint different = 0;
+                    for (uint i = 0; i < 4; i++) {
+                      bfloat low = scale * Dequantize<4, bfloat>{}(packed_byte);
+                      bfloat high =
+                          scale * Dequantize<4, bfloat>{}(packed_byte >> 4);
+                      different |=
+                          as_type<ushort>(fast[2 * i]) != as_type<ushort>(low);
+                      different |= as_type<ushort>(fast[2 * i + 1]) !=
+                          as_type<ushort>(high);
+                    }
+                    mismatch[gid] = different;
+                """,
+            header: "// MLX_INCLUDE_FP_QUANTIZED_HEADERS\n"
+        )
+        let byteValues = MLXArray((0 ... 255).map(UInt8.init))
+        let mismatches = kernel(
+            [byteValues, byteValues],
+            grid: (256 * 256, 1, 1),
+            threadGroup: (256, 1, 1),
+            outputShapes: [[256 * 256]],
+            outputDTypes: [.uint32]
+        )[0]
+
+        XCTAssertEqual(MLX.sum(mismatches).item(UInt32.self), 0)
+    }
+
+    func testCustomKernelAffineQuantizedHeaders() {
+        let kernel = MLXFast.metalKernel(
+            name: "affine_quantized_headers",
+            inputNames: ["input"],
+            outputNames: ["output"],
+            source: """
+                    output[0] = get_pack_factor<8, 32>();
+                """,
+            header: "// MLX_INCLUDE_AFFINE_QUANTIZED_HEADERS\n"
+        )
+        let output = kernel(
+            [MLXArray([0])],
+            grid: (1, 1, 1),
+            threadGroup: (1, 1, 1),
+            outputShapes: [[1]],
+            outputDTypes: [.uint32]
+        )[0]
+
+        XCTAssertEqual(output.item(UInt32.self), 4)
+    }
+
     func testFastSDPA() {
         // https://github.com/ml-explore/mlx-swift/issues/172
         // this will just make sure the MLXFast.scaled_dot_product_attention is
