@@ -123,7 +123,7 @@ class MLXFastKernelTests: XCTestCase {
                 """,
             header: "// MLX_INCLUDE_FP_QUANTIZED_HEADERS\n"
         )
-        let byteValues = MLXArray((0...255).map(UInt8.init))
+        let byteValues = MLXArray((0 ... 255).map(UInt8.init))
         let mismatches = kernel(
             [byteValues, byteValues],
             grid: (256 * 256, 1, 1),
