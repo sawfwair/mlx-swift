@@ -714,15 +714,15 @@ struct QuantizedBlockLoader {
       const int src_ld_,
       threadgroup T* dst_,
       ushort simd_group_id [[simdgroup_index_in_threadgroup]],
-      ushort simd_lane_id [[thread_index_in_simdgroup]])
+      ushort simd_lane_id [[thread_index_in_simdgroup]]) thread
       : src_ld(src_ld_),
         tile_stride(
-            reduction_dim ? BCOLS_PACKED * bytes_per_pack
+            reduction_dim ? BCOLS_PACKED* bytes_per_pack
                           : BROWS * src_ld * bytes_per_pack / pack_factor),
         group_step_cnt(0),
-        group_stride(BROWS * src_ld / group_size),
+        group_stride(BROWS* src_ld / group_size),
         thread_idx(simd_group_id * 32 + simd_lane_id),
-        bi(n_reads * thread_idx / BCOLS_PACKED),
+        bi(n_reads* thread_idx / BCOLS_PACKED),
         bj((n_reads * thread_idx) % BCOLS_PACKED),
         dst(dst_ + bi * dst_ld + bj * pack_factor),
         src(src_ + bi * src_ld * bytes_per_pack / pack_factor +
@@ -730,7 +730,7 @@ struct QuantizedBlockLoader {
         scales(scales_ + bi * src_ld / group_size),
         biases(biases_ + bi * src_ld / group_size) {}
 
-  void load_unsafe() const {
+  void load_unsafe() const thread {
     if (BCOLS_PACKED * BROWS < tgp_size && bi >= BROWS) {
       return;
     }
@@ -743,7 +743,7 @@ struct QuantizedBlockLoader {
     }
   }
 
-  void load_safe(short2 src_tile_dim) const {
+  void load_safe(short2 src_tile_dim) const thread {
     if (BCOLS_PACKED * BROWS < tgp_size && bi >= BROWS) {
       return;
     }
@@ -773,7 +773,7 @@ struct QuantizedBlockLoader {
     }
   }
 
-  void next() {
+  void next() thread {
     src += tile_stride;
     if (reduction_dim == 1) {
       if (group_steps > 1) {
@@ -854,14 +854,14 @@ struct QuantizedBlockLoader<
       const int src_ld_,
       threadgroup T* dst_,
       ushort simd_group_id [[simdgroup_index_in_threadgroup]],
-      ushort simd_lane_id [[thread_index_in_simdgroup]])
+      ushort simd_lane_id [[thread_index_in_simdgroup]]) thread
       : src_ld(src_ld_),
         tile_stride(
-            reduction_dim ? BCOLS_PACKED * bytes_per_pack
+            reduction_dim ? BCOLS_PACKED* bytes_per_pack
                           : BROWS * src_ld * bytes_per_pack / pack_factor),
-        group_stride(BROWS * src_ld / group_size),
+        group_stride(BROWS* src_ld / group_size),
         thread_idx(simd_group_id * 32 + simd_lane_id),
-        bi(n_reads * thread_idx / BCOLS_PACKED),
+        bi(n_reads* thread_idx / BCOLS_PACKED),
         bj((n_reads * thread_idx) % BCOLS_PACKED),
         group_id((bj * pack_factor) / group_size),
         dst(dst_ + bi * dst_ld + bj * pack_factor),
@@ -870,7 +870,7 @@ struct QuantizedBlockLoader<
         scales(scales_ + bi * src_ld / group_size + group_id),
         biases(biases_ + bi * src_ld / group_size + group_id) {}
 
-  void load_unsafe() const {
+  void load_unsafe() const thread {
     if (BCOLS_PACKED * BROWS < tgp_size && bi >= BROWS) {
       return;
     }
@@ -883,7 +883,7 @@ struct QuantizedBlockLoader<
     }
   }
 
-  void load_safe(short2 src_tile_dim) const {
+  void load_safe(short2 src_tile_dim) const thread {
     if (BCOLS_PACKED * BROWS < tgp_size && bi >= BROWS) {
       return;
     }
@@ -913,7 +913,7 @@ struct QuantizedBlockLoader<
     }
   }
 
-  void next() {
+  void next() thread {
     src += tile_stride;
     if (reduction_dim == 1) {
       // if (group_steps > 1) {
@@ -928,8 +928,8 @@ struct QuantizedBlockLoader<
       biases += n_groups;
       // }
     } else {
-      scales += n_groups * group_stride;
-      biases += n_groups * group_stride;
+      scales += group_stride;
+      biases += group_stride;
     }
   }
 };
@@ -1196,7 +1196,6 @@ METAL_FUNC void qmm_n_nax_tgp_impl(
     uint simd_gid [[simdgroup_index_in_threadgroup]],
     uint simd_lid [[thread_index_in_simdgroup]]) {
   (void)lid;
-  (void)M;
 
   static_assert(BK >= SIMD_SIZE, "BK should be larger than SIMD_SIZE");
   static_assert(BK % SIMD_SIZE == 0, "BK should be divisible by SIMD_SIZE");
@@ -1217,23 +1216,20 @@ METAL_FUNC void qmm_n_nax_tgp_impl(
       bits>;
 
   // Set the block
-  const int K_w = K * bytes_per_pack / pack_factor;
-  const int K_g = K / group_size;
   const int y_row = tid.y * BM;
   const int y_col = tid.x * BN;
 
   auto wl = (const device uint8_t*)w;
 
+  // Here w is [K, N]: packed and group-quantized along N, with row stride N.
   x += y_row * static_cast<int64_t>(K);
-  wl += y_col * K_w;
-  scales += y_col * K_g;
-  biases += y_col * K_g;
+  wl += y_col * bytes_per_pack / pack_factor;
+  scales += y_col / group_size;
+  biases += y_col / group_size;
   y += y_row * static_cast<int64_t>(N) + y_col;
 
-  // Make the x loader and mma operation
-  // const short num_els = min(BM, M - y_row);
-  // const short num_outs = min(BN, N - y_col);
-  loader_w_t loader_w(wl, scales, biases, K, Ws, simd_gid, simd_lid);
+  // Make the weight loader
+  loader_w_t loader_w(wl, scales, biases, N, Ws, simd_gid, simd_lid);
 
   constexpr short SM = BM / WM;
   constexpr short SN = BN / WN;
@@ -1245,6 +1241,8 @@ METAL_FUNC void qmm_n_nax_tgp_impl(
 
   const short tm = SM * (simd_gid / WN);
   const short tn = SN * (simd_gid % WN);
+
+  const short sgp_sm = min(int(SM), M - (y_row + tm));
 
   const short ldb_tgp = BN_padded;
 
@@ -1270,7 +1268,12 @@ METAL_FUNC void qmm_n_nax_tgp_impl(
 
       volatile int compiler_barrier;
 
-      Atile.load(x + kk1, K);
+      if (sgp_sm == SM) {
+        Atile.load(x + kk1, K);
+      } else {
+        Atile.load_safe(x + kk1, K, short2(SK, sgp_sm));
+      }
+
       Btile.template load<T, BN_padded, 1>(Ws + tn + kk1 * ldb_tgp);
 
       tile_matmad_nax(
@@ -1290,7 +1293,11 @@ METAL_FUNC void qmm_n_nax_tgp_impl(
   // Store results to device memory
   threadgroup_barrier(mem_flags::mem_threadgroup);
 
-  Dtile.store(y + tm * N + tn, N);
+  if (sgp_sm == SM) {
+    Dtile.store(y + tm * N + tn, N);
+  } else {
+    Dtile.store_safe(y + tm * N + tn, N, short2(SN, sgp_sm));
+  }
 }
 
 template <

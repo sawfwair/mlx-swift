@@ -39,7 +39,7 @@ static inline T dequantize_scale(uint8_t s) {
 
 template <int bits>
 struct Quantize {
-  uint8_t operator()(float x) {
+  uint8_t operator()(float x) thread {
     if (bits == 8) {
       return fp8_e4m3(x).bits;
     } else {
@@ -50,7 +50,7 @@ struct Quantize {
 
 template <int bits, typename U = float>
 struct Dequantize {
-  U operator()(uint8_t x) {
+  U operator()(uint8_t x) thread {
     if constexpr (bits == 8) {
       return U(*(thread fp8_e4m3*)(&x));
     } else {
@@ -67,6 +67,44 @@ inline void dequantize(uint8_t w, U scale, threadgroup U* w_local) {
   } else {
     w_local[0] = scale * Dequantize<8, U>{}(w);
   }
+}
+
+// NVFP4 block-loader staging fast path. This is the NAX twin of the exact
+// power-of-two scale fold and packed-nibble decode in fp_quantized.h.
+static inline float fp4nv_scale_x16384(uint8_t s) {
+  return float(*(thread fp8_e4m3*)(&s)) * 16384.0f;
+}
+
+static inline uint32_t fp4nv_pack4(const device uint8_t* p) {
+  return as_type<uint32_t>(uchar4(*(const device packed_uchar4*)p));
+}
+
+template <typename T>
+static inline void fp4nv_decode8(uint32_t c, float scale, thread T* out) {
+  const float2 v0 =
+      float2(
+          as_type<half2>(
+              ((c & 0x00070007u) << 9) | ((c & 0x00080008u) << 12))) *
+      scale;
+  const float2 v1 =
+      float2(
+          as_type<half2>(((c & 0x00700070u) << 5) | ((c & 0x00800080u) << 8))) *
+      scale;
+  const float2 v2 =
+      float2(
+          as_type<half2>(((c & 0x07000700u) << 1) | ((c & 0x08000800u) << 4))) *
+      scale;
+  const float2 v3 =
+      float2(as_type<half2>(((c & 0x70007000u) >> 3) | (c & 0x80008000u))) *
+      scale;
+  out[0] = T(v0.x);
+  out[1] = T(v1.x);
+  out[2] = T(v2.x);
+  out[3] = T(v3.x);
+  out[4] = T(v0.y);
+  out[5] = T(v1.y);
+  out[6] = T(v2.y);
+  out[7] = T(v3.y);
 }
 
 template <
@@ -112,14 +150,14 @@ struct QuantizedBlockLoader {
       const int src_ld_,
       threadgroup T* dst_,
       ushort simd_group_id [[simdgroup_index_in_threadgroup]],
-      ushort simd_lane_id [[thread_index_in_simdgroup]])
+      ushort simd_lane_id [[thread_index_in_simdgroup]]) thread
       : src_ld(src_ld_),
         tile_stride(
-            reduction_dim ? BCOLS_PACKED * bytes_per_pack
+            reduction_dim ? BCOLS_PACKED* bytes_per_pack
                           : BROWS * src_ld * bytes_per_pack / pack_factor),
-        group_stride(BROWS * src_ld / group_size),
+        group_stride(BROWS* src_ld / group_size),
         thread_idx(simd_group_id * 32 + simd_lane_id),
-        bi(n_reads * thread_idx / BCOLS_PACKED),
+        bi(n_reads* thread_idx / BCOLS_PACKED),
         bj((n_reads * thread_idx) % BCOLS_PACKED),
         group_id((bj * pack_factor) / group_size),
         dst(dst_ + bi * dst_ld + bj * pack_factor),
@@ -127,23 +165,46 @@ struct QuantizedBlockLoader {
             bj * bytes_per_pack),
         scales(scales_ + bi * src_ld / group_size + group_id) {}
 
-  void load_unsafe() const {
-    if (BCOLS_PACKED * BROWS < tgp_size && bi >= BROWS) {
-      return;
-    }
+  MLX_MTL_CONST bool fp4nv_fast = (bits == 4) && (group_size == 16) &&
+      (bytes_per_pack == 1) && (n_reads_per_scale >= 4) &&
+      ((n_reads_per_scale % 4) == 0);
 
-    int k = 0;
-    for (int i = 0; i < n_steps_per_read; i++) {
-      T scale = dequantize_scale<T, group_size>(scales[i]);
-      for (int j = 0; j < n_reads_per_scale; j++) {
-        dequantize<T, bits>(
-            src[k * bytes_per_pack], scale, dst + k * pack_factor);
-        k++;
+  void stage() const thread {
+    if constexpr (fp4nv_fast) {
+      int k = 0;
+      for (int i = 0; i < n_steps_per_read; i++) {
+        const float scale = fp4nv_scale_x16384(scales[i]);
+        for (int j = 0; j < n_reads_per_scale / 4; j++) {
+          T vals[8];
+          fp4nv_decode8<T>(fp4nv_pack4(src + k), scale, vals);
+          for (int e = 0; e < 8; e++) {
+            dst[k * pack_factor + e] = vals[e];
+          }
+          k += 4;
+        }
+      }
+    } else {
+      int k = 0;
+      for (int i = 0; i < n_steps_per_read; i++) {
+        T scale = dequantize_scale<T, group_size>(scales[i]);
+        for (int j = 0; j < n_reads_per_scale; j++) {
+          dequantize<T, bits>(
+              src[k * bytes_per_pack], scale, dst + k * pack_factor);
+          k++;
+        }
       }
     }
   }
 
-  void load_safe(short2 src_tile_dim) const {
+  void load_unsafe() const thread {
+    if (BCOLS_PACKED * BROWS < tgp_size && bi >= BROWS) {
+      return;
+    }
+
+    stage();
+  }
+
+  void load_safe(short2 src_tile_dim) const thread {
     if (BCOLS_PACKED * BROWS < tgp_size && bi >= BROWS) {
       return;
     }
@@ -162,23 +223,15 @@ struct QuantizedBlockLoader {
       return;
     }
 
-    int k = 0;
-    for (int i = 0; i < n_steps_per_read; i++) {
-      T scale = dequantize_scale<T, group_size>(scales[i]);
-      for (int j = 0; j < n_reads_per_scale; j++) {
-        dequantize<T, bits>(
-            src[k * bytes_per_pack], scale, dst + k * pack_factor);
-        k++;
-      }
-    }
+    stage();
   }
 
-  void next() {
+  void next() thread {
     src += tile_stride;
     if (reduction_dim == 1) {
       scales += n_groups;
     } else {
-      scales += n_groups * group_stride;
+      scales += group_stride;
     }
   }
 };
@@ -913,6 +966,18 @@ template <
     dispatch_bool(align_M || !is_unaligned_sm, [&](auto kAlignedM) {
       dispatch_bool(align_N || !is_unaligned_bn, [&](auto kAlignedN) {
         for (int k = 0; k < K_it; k++) {
+          // Load this immutable activation tile before staging the weights so
+          // its device reads overlap the two unchanged threadgroup barriers.
+          // The MMA traversal and accumulator chain below remain identical.
+          NAXTile<T, TM, TK> Atile[BK / SK];
+          STEEL_PRAGMA_UNROLL
+          for (int kk1 = 0; kk1 < BK; kk1 += SK) {
+            if constexpr (kAlignedM.value) {
+              Atile[kk1 / SK].load(xn + kk1, K);
+            } else {
+              Atile[kk1 / SK].load_rows(xn + kk1, K, sgp_sm);
+            }
+          }
           threadgroup_barrier(mem_flags::mem_threadgroup);
           if constexpr (kAlignedN.value) {
             loader_w.load_unsafe();
@@ -925,16 +990,9 @@ template <
 
           STEEL_PRAGMA_NO_UNROLL
           for (int kk1 = 0; kk1 < BK; kk1 += SK) {
-            NAXTile<T, TM, TK> Atile;
             NAXTile<Wtype, BR, BC> Btile;
 
             volatile int compiler_barrier;
-
-            if constexpr (kAlignedM.value) {
-              Atile.load(xn + kk1, K);
-            } else {
-              Atile.load_safe(xn + kk1, K, short2(SK, sgp_sm));
-            }
 
             if constexpr (transpose) {
               Btile.template load<Wtype, BK_padded, 1>(
@@ -946,7 +1004,7 @@ template <
 
             tile_matmad_nax(
                 Dtile,
-                Atile,
+                Atile[kk1 / SK],
                 metal::bool_constant<false>{},
                 Btile,
                 metal::bool_constant<transpose>{});
