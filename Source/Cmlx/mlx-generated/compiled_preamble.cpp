@@ -199,7 +199,6 @@ Simd<T, 1> recip(Simd<T, 1> in) {
 }
 template <typename T> Simd<T, 1> operator-(Simd<T, 1> in) { return std::negate{}(in.value); }
 template <typename T> Simd<T, 1> operator!(Simd<T, 1> in) { return std::logical_not{}(in.value); }
-template <typename T> Simd<T, 1> abs(Simd<T, 1> in) { return std::abs(in.value); }
 template <typename T> Simd<T, 1> acos(Simd<T, 1> in) { return std::acos(in.value); }
 template <typename T> Simd<T, 1> acosh(Simd<T, 1> in) { return std::acosh(in.value); }
 template <typename T> Simd<T, 1> asin(Simd<T, 1> in) { return std::asin(in.value); }
@@ -217,6 +216,14 @@ template <typename T> Simd<T, 1> sinh(Simd<T, 1> in) { return std::sinh(in.value
 template <typename T> Simd<T, 1> sqrt(Simd<T, 1> in) { return std::sqrt(in.value); }
 template <typename T> Simd<T, 1> tan(Simd<T, 1> in) { return std::tan(in.value); }
 template <typename T> Simd<T, 1> tanh(Simd<T, 1> in) { return std::tanh(in.value); }
+template <typename T>
+Simd<T, 1> abs(Simd<T, 1> in) {
+  if constexpr (std::is_unsigned_v<T>) {
+    return in;
+  } else {
+    return std::abs(in.value);
+  }
+}
 template <typename T>
 Simd<T, 1> log1p(Simd<T, 1> in) {
   if constexpr (is_complex<T>) {
