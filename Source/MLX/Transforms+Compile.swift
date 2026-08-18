@@ -86,12 +86,13 @@ final class CompiledFunction: @unchecked (Sendable) {
 
         // note: this will use the cached compile (via the id)
         // but will be able to re-evaluate with fresh state if needed
-        evalLock.lock()
+        // MLX v0.32.1 keeps compile caches thread-local and makes erasure
+        // cache-scoped. `self.lock` already serializes this compiled function,
+        // so unrelated compiled functions no longer need the global eval lock.
         var compiled = mlx_closure_new()
         let compileStatus = mlx_detail_compile(&compiled, innerClosure, id, shapeless, [], 0)
         defer {
             mlx_closure_free(compiled)
-            evalLock.unlock()
         }
 
         // mlx_error was already dispatched on failure:

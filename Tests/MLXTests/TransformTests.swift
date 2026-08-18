@@ -348,7 +348,7 @@ class TransformTests: XCTestCase {
         assertEqual(gv(x), x * 2)
     }
 
-    func testCompileThreadSafety() async throws {
+    func testIndependentCompiledFunctionsCanTraceConcurrently() async throws {
 
         func swiglu(_ xLinear: MLXArray, _ xGlu: MLXArray, alpha: Float = 1.702, limit: Float = 7.0)
             -> MLXArray
@@ -366,26 +366,38 @@ class TransformTests: XCTestCase {
         }
 
         func compileSwiglu() -> @Sendable (MLXArray, MLXArray) -> MLXArray {
-            compile(shapeless: true) { xLinear, xGlu in
+            compile { xLinear, xGlu in
                 swiglu(xLinear, xGlu)
             }
         }
 
-        await withTaskGroup(of: Void.self) { group in
-            for _ in 0 ..< 10 {
+        let results = await withTaskGroup(of: Bool.self, returning: [Bool].self) { group in
+            for lane in 0 ..< 12 {
                 group.addTask {
                     withRandomState(.init()) {
-                        let x = MLXRandom.normal([1024, 1024])
-                        let y = MLXRandom.normal(x.shape)
-                        let _ = compileSwiglu()(x, y)
+                        let compiled = compileSwiglu()
+                        for width in [32 + lane, 48 + lane] {
+                            let x = MLXRandom.normal([width, width])
+                            let y = MLXRandom.normal(x.shape)
+                            let actual = compiled(x, y)
+                            let expected = swiglu(x, y)
+                            guard allClose(actual, expected).item(Bool.self) else {
+                                return false
+                            }
+                        }
+                        return true
                     }
                 }
             }
 
-            for await _ in group {
-
+            var results: [Bool] = []
+            for await result in group {
+                results.append(result)
             }
+            return results
         }
+        XCTAssertEqual(results.count, 12)
+        XCTAssertTrue(results.allSatisfy { $0 })
     }
 
     func testVmapThreadSafety() async throws {
