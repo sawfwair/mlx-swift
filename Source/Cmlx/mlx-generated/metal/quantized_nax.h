@@ -576,8 +576,14 @@ dequantize(const device uint8_t* w, U scale, U bias, threadgroup U* w_local) {
 
   if (bits == 1) {
     float sc[8] = {
-        s, s / 2.0f, s / 4.0f, s / 8.0f,
-        s / 16.0f, s / 32.0f, s / 64.0f, s / 128.0f};
+        s,
+        s / 2.0f,
+        s / 4.0f,
+        s / 8.0f,
+        s / 16.0f,
+        s / 32.0f,
+        s / 64.0f,
+        s / 128.0f};
     for (int i = 0; i < (N / 8); i++) {
       w_local[8 * i] = static_cast<U>(sc[0] * (w[i] & 0x01) + b);
       w_local[8 * i + 1] = static_cast<U>(sc[1] * (w[i] & 0x02) + b);

@@ -40,6 +40,7 @@ mlx_stream mlx_stream_new_thread_unsafe_device(mlx_device dev);
 #include <Cmlx/mlx-version.h>
 #include <Cmlx/mlx-allocator.h>
 #include <Cmlx/mlx-dtype.h>
+#include <Cmlx/mlx-error.h>
 #include <Cmlx/mlx-event.h>
 #include <Cmlx/mlx-small_vector.h>
 #include <Cmlx/mlx-types-complex.h>
@@ -52,7 +53,9 @@ mlx_stream mlx_stream_new_thread_unsafe_device(mlx_device dev);
 #include <Cmlx/mlx-scheduler.h>
 #include <Cmlx/mlx-primitives.h>
 #include <Cmlx/mlx-backend-metal-device.h>
+#include <Cmlx/mlx-backend-metal-resident.h>
 #include <Cmlx/mlx-backend-common-utils.h>
+#include <Cmlx/mlx-backend-common-metal_kernel.h>
 #include <Cmlx/mlx-backend-cpu-encoder.h>
 #include <Cmlx/mlx-backend-gpu-eval.h>
 #include <Cmlx/Metal.hpp>

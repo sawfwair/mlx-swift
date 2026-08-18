@@ -4,6 +4,35 @@
 
 import PackageDescription
 
+#if os(Linux)
+    let cudaBuildPlugins: [Target.PluginUsage] = [
+        .plugin(name: "CudaBuild")
+    ]
+    let cudaPackageDependencies: [Package.Dependency] = [
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0")
+    ]
+    let cudaTargets: [Target] = [
+        .executableTarget(
+            name: "encuda",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ],
+            path: "Source/Encuda",
+        ),
+        .plugin(
+            name: "CudaBuild",
+            capability: .buildTool(),
+            dependencies: [
+                .target(name: "encuda")
+            ],
+        ),
+    ]
+#else
+    let cudaBuildPlugins: [Target.PluginUsage] = []
+    let cudaPackageDependencies: [Package.Dependency] = []
+    let cudaTargets: [Target] = []
+#endif
+
 let noMetalCmlxExcludes = [
     // Exclude Metal backend files, but keep no_metal.cpp for stubs
     // "mlx/mlx/backend/metal/no_metal.cpp",
@@ -229,6 +258,7 @@ let cmlx = Target.target(
 
         // example code + mlx-c distributed
         "mlx-c/examples",
+        "mlx-c/mlx/c/compile.cpp",
         "mlx-c/mlx/c/distributed.cpp",
         "mlx-c/mlx/c/distributed_group.cpp",
 
@@ -292,9 +322,7 @@ let cmlx = Target.target(
         .define("MLX_VERSION", to: "\"0.32.1\""),
     ],
     linkerSettings: linkerSettings,
-    plugins: [
-        .plugin(name: "CudaBuild")
-    ],
+    plugins: cudaBuildPlugins,
 )
 
 let package = Package(
@@ -319,9 +347,8 @@ let package = Package(
     ],
     dependencies: [
         // for Complex type
-        .package(url: "https://github.com/apple/swift-numerics", from: "1.0.0"),
-        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
-    ],
+        .package(url: "https://github.com/apple/swift-numerics", from: "1.0.0")
+    ] + cudaPackageDependencies,
     targets: [
         cmlx,
         .testTarget(
@@ -417,21 +444,7 @@ let package = Package(
             path: "Source/Examples",
             sources: ["CustomFunctionExampleSimple.swift"]
         ),
-        .executableTarget(
-            name: "encuda",
-            dependencies: [
-                .product(name: "ArgumentParser", package: "swift-argument-parser")
-            ],
-            path: "Source/Encuda",
-        ),
-        .plugin(
-            name: "CudaBuild",
-            capability: .buildTool(),
-            dependencies: [
-                .target(name: "encuda")
-            ],
-        ),
-    ],
+    ] + cudaTargets,
     cxxLanguageStandard: .gnucxx20
 )
 

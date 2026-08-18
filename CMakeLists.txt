@@ -48,8 +48,17 @@ FetchContent_Declare(
   SOURCE_DIR
   "${MLX_SWIFT_MLX_C_SOURCE_DIR}")
 FetchContent_MakeAvailable(mlx-c)
+
+# mlx v0.32.1 makes compile-cache erasure explicitly cache-scoped so a compiled
+# function can be released from a different thread safely.  mlx-c has not
+# adopted that API yet, so replace only its compile bridge locally.
+get_target_property(MLX_C_SOURCES mlxc SOURCES)
+list(FILTER MLX_C_SOURCES EXCLUDE REGEX
+     "[/\\\\]mlx[/\\\\]c[/\\\\]compile\\.cpp$")
+set_property(TARGET mlxc PROPERTY SOURCES ${MLX_C_SOURCES})
 target_sources(
-  mlxc PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source/Cmlx/mlx-swift-stream.cpp")
+  mlxc PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source/Cmlx/mlx-swift-compile.cpp"
+               "${CMAKE_CURRENT_SOURCE_DIR}/Source/Cmlx/mlx-swift-stream.cpp")
 
 # swift-numerics
 set(swift_numerics_patch git apply

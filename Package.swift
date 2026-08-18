@@ -143,6 +143,7 @@ let cmlx = Target.target(
     exclude: platformExcludes + [
         "vendor-README.md",
         "mlx-c/examples",
+        "mlx-c/mlx/c/compile.cpp",
         "mlx-c/mlx/c/distributed.cpp",
         "mlx-c/mlx/c/distributed_group.cpp",
         "json",

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C370C7322F71CF0000582499 /* mlx-swift-compile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C370C7302F71CF0000582499 /* mlx-swift-compile.cpp */; };
+		C370C7332F71CF0000582499 /* mlx-swift-stream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C370C7312F71CF0000582499 /* mlx-swift-stream.cpp */; };
 		C3434FA12EABEF350010D6B8 /* Cmlx.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C3AE8EE62EAAA3C5000BD280 /* Cmlx.framework */; };
 		C3AE8ECE2EAAA15F000BD280 /* MLX.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C3AE8EC42EAAA15F000BD280 /* MLX.framework */; };
 		C3AEA0322EAAE79A000BD280 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C3AEA0312EAAE79A000BD280 /* Accelerate.framework */; };
@@ -66,6 +68,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		C370C7302F71CF0000582499 /* mlx-swift-compile.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "mlx-swift-compile.cpp"; sourceTree = "<group>"; };
+		C370C7312F71CF0000582499 /* mlx-swift-stream.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "mlx-swift-stream.cpp"; sourceTree = "<group>"; };
 		C319FC0A2F1564BE00620953 /* MLX.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = MLX.xctestplan; sourceTree = "<group>"; };
 		C3AE8EC42EAAA15F000BD280 /* MLX.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = MLX.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3AE8ECD2EAAA15F000BD280 /* MLXTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MLXTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -105,6 +109,13 @@
 				"GPU+CUDA.swift",
 			);
 			target = C3AE8EC32EAAA15F000BD280 /* MLX */;
+		};
+		C370C72F2F71CED900582499 /* Exceptions for "MLXTests" folder in "MLXTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				NAXGateRegressionTests.swift,
+			);
+			target = C3AE8ECC2EAAA15F000BD280 /* MLXTests */;
 		};
 		C3AE939F2EAAAA5A000BD280 /* Exceptions for "metal-cpp" folder in "Cmlx" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -299,7 +310,9 @@
 				"examples/example-closure.c",
 				"examples/example-export.c",
 				"examples/example-float64.c",
+				"examples/example-gguf.c",
 				"examples/example-grad.c",
+				"examples/example-graph.c",
 				"examples/example-metal-kernel.c",
 				"examples/example-safe-tensors.c",
 				examples/example.c,
@@ -307,6 +320,7 @@
 				"mlx-c.pc.in",
 				mlx/c/array.h,
 				mlx/c/closure.h,
+				mlx/c/compile.cpp,
 				mlx/c/compile.h,
 				mlx/c/cuda.cpp,
 				mlx/c/cuda.h,
@@ -363,6 +377,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				".clang-format",
+				".github/actions/build-wheel/action.yml",
+				".github/actions/build/action.yml",
 				".github/actions/build-cuda-release/action.yml",
 				".github/actions/build-docs/action.yml",
 				".github/actions/build-linux-release/action.yml",
@@ -373,20 +389,41 @@
 				".github/actions/setup-linux/action.yml",
 				".github/actions/setup-macos/action.yml",
 				".github/actions/setup-windows/action.yml",
+				".github/actions/setup/action.yml",
 				".github/actions/test-linux/action.yml",
+				".github/actions/test-macos/action.yml",
+				".github/actions/test-wheel/action.yml",
 				".github/actions/test-windows/action.yml",
 				.github/dependabot.yml,
 				.github/ISSUE_TEMPLATE/bug_report.md,
 				.github/pull_request_template.md,
 				".github/scripts/build-sanitizer-tests.sh",
+				".github/scripts/find-eligible-contributors.js",
 				".github/scripts/setup+build-cpp-linux-fedora-container.sh",
+				".github/scripts/update-bypass-list.js",
 				.github/workflows/build_and_test.yml,
 				.github/workflows/documentation.yml,
 				.github/workflows/nightly.yml,
 				.github/workflows/release.yml,
+				.github/workflows/update_bypass_list.yml,
 				.gitignore,
 				".pre-commit-config.yaml",
 				ACKNOWLEDGMENTS.md,
+				benchmarks/python/block_masked_mm_bench.py,
+				benchmarks/python/segmented_mm_bench.py,
+				benchmarks/python/slice_update_bench.py,
+				docs/logo/mlx_logo_dark.pdf,
+				docs/logo/mlx_logo_dark.png,
+				docs/logo/mlx_logo_dark.svg,
+				docs/logo/mlx_logo.pdf,
+				docs/logo/mlx_logo.png,
+				docs/logo/mlx_logo.svg,
+				docs/src/python/printoptions.rst,
+				docs/src/usage/environment_variables.rst,
+				docs/src/usage/kv_cache.rst,
+				docs/src/usage/precision.rst,
+				examples/python/distributed_data_parallel.py,
+				examples/python/distributed_tensor_parallel.py,
 				benchmarks/cpp/autograd.cpp,
 				benchmarks/cpp/CMakeLists.txt,
 				benchmarks/cpp/compare_devices.cpp,
@@ -802,6 +839,8 @@
 				mlx/backend/metal/kernels/copy.h,
 				mlx/backend/metal/kernels/copy.metal,
 				mlx/backend/metal/kernels/defines.h,
+				mlx/backend/metal/kernels/dot.h,
+				mlx/backend/metal/kernels/dot.metal,
 				mlx/backend/metal/kernels/erf.h,
 				mlx/backend/metal/kernels/expm1f.h,
 				mlx/backend/metal/kernels/fence.metal,
@@ -817,6 +856,7 @@
 				mlx/backend/metal/kernels/fp8.h,
 				mlx/backend/metal/kernels/gemv_masked.h,
 				mlx/backend/metal/kernels/gemv_masked.metal,
+				mlx/backend/metal/kernels/gemv.h,
 				mlx/backend/metal/kernels/gemv.metal,
 				mlx/backend/metal/kernels/hadamard.h,
 				mlx/backend/metal/kernels/indexing/gather_axis.h,
@@ -849,6 +889,8 @@
 				mlx/backend/metal/kernels/scaled_dot_product_attention.metal,
 				mlx/backend/metal/kernels/scan.h,
 				mlx/backend/metal/kernels/scan.metal,
+				mlx/backend/metal/kernels/searchsorted.h,
+				mlx/backend/metal/kernels/searchsorted.metal,
 				mlx/backend/metal/kernels/sdpa_vector.h,
 				mlx/backend/metal/kernels/softmax.h,
 				mlx/backend/metal/kernels/softmax.metal,
@@ -890,6 +932,8 @@
 				mlx/backend/metal/kernels/steel/gemm/kernels/steel_gemm_masked.h,
 				mlx/backend/metal/kernels/steel/gemm/kernels/steel_gemm_masked.metal,
 				mlx/backend/metal/kernels/steel/gemm/kernels/steel_gemm_segmented.h,
+				mlx/backend/metal/kernels/steel/gemm/kernels/steel_gemm_segmented_nax.h,
+				mlx/backend/metal/kernels/steel/gemm/kernels/steel_gemm_segmented_nax.metal,
 				mlx/backend/metal/kernels/steel/gemm/kernels/steel_gemm_segmented.metal,
 				mlx/backend/metal/kernels/steel/gemm/kernels/steel_gemm_splitk_nax.h,
 				mlx/backend/metal/kernels/steel/gemm/kernels/steel_gemm_splitk_nax.metal,
@@ -944,6 +988,29 @@
 				mlx/distributed/jaccl/CMakeLists.txt,
 				mlx/distributed/jaccl/jaccl.cpp,
 				mlx/distributed/jaccl/jaccl.h,
+				mlx/distributed/jaccl/lib/CMakeLists.txt,
+				mlx/distributed/jaccl/lib/examples/allreduce_bench.cpp,
+				mlx/distributed/jaccl/lib/examples/CMakeLists.txt,
+				mlx/distributed/jaccl/lib/examples/minimal_barrier.cpp,
+				mlx/distributed/jaccl/lib/examples/minimal_cfg.cpp,
+				mlx/distributed/jaccl/lib/examples/minimal_env.cpp,
+				mlx/distributed/jaccl/lib/jaccl/group.h,
+				mlx/distributed/jaccl/lib/jaccl/jaccl.cpp,
+				mlx/distributed/jaccl/lib/jaccl/jaccl.h,
+				mlx/distributed/jaccl/lib/jaccl/mesh_impl.h,
+				mlx/distributed/jaccl/lib/jaccl/mesh.cpp,
+				mlx/distributed/jaccl/lib/jaccl/mesh.h,
+				mlx/distributed/jaccl/lib/jaccl/rdma.cpp,
+				mlx/distributed/jaccl/lib/jaccl/rdma.h,
+				mlx/distributed/jaccl/lib/jaccl/reduction_ops.h,
+				mlx/distributed/jaccl/lib/jaccl/ring_impl.h,
+				mlx/distributed/jaccl/lib/jaccl/ring.cpp,
+				mlx/distributed/jaccl/lib/jaccl/ring.h,
+				mlx/distributed/jaccl/lib/jaccl/tcp.cpp,
+				mlx/distributed/jaccl/lib/jaccl/tcp.h,
+				mlx/distributed/jaccl/lib/jaccl/threadpool.h,
+				mlx/distributed/jaccl/lib/jaccl/types.h,
+				mlx/distributed/jaccl/lib/README.md,
 				mlx/distributed/jaccl/mesh_impl.h,
 				mlx/distributed/jaccl/mesh.cpp,
 				mlx/distributed/jaccl/mesh.h,
@@ -971,6 +1038,7 @@
 				mlx/dtype_utils.h,
 				mlx/dtype.h,
 				mlx/einsum.h,
+				mlx/error.h,
 				mlx/event.h,
 				mlx/export_impl.h,
 				mlx/export.h,
@@ -1042,6 +1110,8 @@
 				python/src/array.cpp,
 				python/src/buffer.h,
 				python/src/CMakeLists.txt,
+				python/src/print.cpp,
+				python/src/random.h,
 				python/src/constants.cpp,
 				python/src/convert.cpp,
 				python/src/convert.h,
@@ -1105,9 +1175,11 @@
 				python/tests/test_quantized.py,
 				python/tests/test_random.py,
 				python/tests/test_reduce.py,
+				python/tests/test_threads.py,
 				python/tests/test_tree.py,
 				python/tests/test_upsample.py,
 				python/tests/test_vmap.py,
+				python/tests/test_zero_copy.py,
 				README.md,
 				setup.py,
 				tests/allocator_tests.cpp,
@@ -1129,6 +1201,7 @@
 				tests/load_tests.cpp,
 				tests/ops_tests.cpp,
 				tests/random_tests.cpp,
+				tests/residency_tests.cpp,
 				tests/scheduler_tests.cpp,
 				tests/tests.cpp,
 				tests/utils_tests.cpp,
@@ -1145,11 +1218,13 @@
 				"mlx-api.h",
 				"mlx-array.h",
 				"mlx-backend-common-utils.h",
+				"mlx-backend-common-metal_kernel.h",
 				"mlx-backend-cpu-encoder.h",
 				"mlx-backend-cuda-cuda.h",
 				"mlx-backend-gpu-eval.h",
 				"mlx-backend-metal-device.h",
 				"mlx-backend-metal-metal.h",
+				"mlx-backend-metal-resident.h",
 				"mlx-c-array.h",
 				"mlx-c-closure.h",
 				"mlx-c-compile.h",
@@ -1161,6 +1236,7 @@
 				"mlx-c-export.h",
 				"mlx-c-fast.h",
 				"mlx-c-fft.h",
+				"mlx-c-graph_utils.h",
 				"mlx-c-half.h",
 				"mlx-c-io_types.h",
 				"mlx-c-io.h",
@@ -1184,6 +1260,7 @@
 				"mlx-distributed-ops.h",
 				"mlx-dtype.h",
 				"mlx-einsum.h",
+				"mlx-error.h",
 				"mlx-event.h",
 				"mlx-export_impl.h",
 				"mlx-export.h",
@@ -1224,6 +1301,7 @@
 				metal/complex.h,
 				metal/copy.h,
 				metal/defines.h,
+				metal/dot.h,
 				metal/erf.h,
 				metal/expm1f.h,
 				metal/fft.h,
@@ -1233,6 +1311,7 @@
 				metal/fp_quantized.h,
 				metal/fp4.h,
 				metal/fp8.h,
+				metal/gemv.h,
 				metal/gemv_masked.h,
 				metal/hadamard.h,
 				metal/indexing/gather_axis.h,
@@ -1255,6 +1334,7 @@
 				metal/reduction/reduce_init.h,
 				metal/reduction/reduce_row.h,
 				metal/scan.h,
+				metal/searchsorted.h,
 				metal/sdpa_vector.h,
 				metal/softmax.h,
 				metal/sort.h,
@@ -1284,6 +1364,7 @@
 				metal/steel/gemm/kernels/steel_gemm_gather.h,
 				metal/steel/gemm/kernels/steel_gemm_masked.h,
 				metal/steel/gemm/kernels/steel_gemm_segmented.h,
+				metal/steel/gemm/kernels/steel_gemm_segmented_nax.h,
 				metal/steel/gemm/kernels/steel_gemm_splitk_nax.h,
 				metal/steel/gemm/kernels/steel_gemm_splitk.h,
 				metal/steel/gemm/loader.h,
@@ -1311,14 +1392,22 @@
 				CMakeLists.txt,
 				CONTRIBUTING.md,
 				doc/api.rst,
+				doc/api.md,
+				doc/ChangeLog-old.md,
 				doc/build.py,
 				doc/CMakeLists.txt,
 				doc/conf.py,
 				doc/contents.rst,
 				doc/fmt.less,
+				doc/fmt.css,
+				doc/fmt.js,
+				doc/get-started.md,
+				doc/index.md,
 				doc/index.rst,
+				doc/perf.svg,
 				"doc/python-license.txt",
 				doc/syntax.rst,
+				doc/syntax.md,
 				doc/usage.rst,
 				include/fmt/args.h,
 				include/fmt/base.h,
@@ -1352,6 +1441,12 @@
 				support/manage.py,
 				support/printable.py,
 				support/README,
+				support/check-commits,
+				support/mkdocs,
+				support/mkdocs.yml,
+				support/python/mkdocstrings_handlers/cxx/__init__.py,
+				support/python/mkdocstrings_handlers/cxx/templates/README,
+				support/release.py,
 				support/Vagrantfile,
 				"test/add-subdirectory-test/CMakeLists.txt",
 				"test/add-subdirectory-test/main.cc",
@@ -1387,6 +1482,7 @@
 				test/fuzzing/README.md,
 				"test/fuzzing/two-args.cc",
 				"test/gtest-extra-test.cc",
+				"test/perf-sanity.cc",
 				"test/gtest-extra.cc",
 				"test/gtest-extra.h",
 				"test/gtest/.clang-format",
@@ -1496,6 +1592,9 @@
 		};
 		C3CBE6962EAC14BC0029A645 /* MLXTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C370C72F2F71CED900582499 /* Exceptions for "MLXTests" folder in "MLXTests" target */,
+			);
 			name = MLXTests;
 			path = ../Tests/MLXTests;
 			sourceTree = SOURCE_ROOT;
@@ -1621,6 +1720,8 @@
 		C3AE8EFC2EAAA40E000BD280 /* Cmlx */ = {
 			isa = PBXGroup;
 			children = (
+				C370C7302F71CF0000582499 /* mlx-swift-compile.cpp */,
+				C370C7312F71CF0000582499 /* mlx-swift-stream.cpp */,
 				C3CB25472EB11EFE0029A645 /* framework */,
 				C3CBF2682EAC23BA0029A645 /* fmt */,
 				C3CBE24A2EABF7870029A645 /* include-framework */,
@@ -1918,6 +2019,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C370C7322F71CF0000582499 /* mlx-swift-compile.cpp in Sources */,
+				C370C7332F71CF0000582499 /* mlx-swift-stream.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
