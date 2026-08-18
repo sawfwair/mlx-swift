@@ -4,66 +4,19 @@
 #pragma once
 
 #include <atomic>
-#include <future>
 #include <queue>
 #include <shared_mutex>
-#include <thread>
 #include <unordered_map>
 
 #include <Cmlx/mlx-api.h>
 #include <Cmlx/mlx-backend-gpu-eval.h>
 #include <Cmlx/mlx-device.h>
 #include <Cmlx/mlx-stream.h>
+#include <Cmlx/mlx-utils.h>
 
 namespace mlx::core::scheduler {
 
-struct StreamThread {
-  std::mutex mtx;
-  std::queue<std::function<void()>> q;
-  std::condition_variable cond;
-  bool stop;
-  std::thread thread;
-
-  StreamThread() : stop(false), thread(&StreamThread::thread_fn, this) {}
-
-  ~StreamThread() {
-    {
-      std::lock_guard<std::mutex> lk(mtx);
-      stop = true;
-    }
-    cond.notify_one();
-    thread.join();
-  }
-
-  void thread_fn() {
-    while (true) {
-      std::function<void()> task;
-      {
-        std::unique_lock<std::mutex> lk(mtx);
-        cond.wait(lk, [this] { return !this->q.empty() || this->stop; });
-        if (q.empty() && stop) {
-          return;
-        }
-        task = std::move(q.front());
-        q.pop();
-      }
-
-      task();
-    }
-  }
-
-  void enqueue(std::function<void()> f) {
-    {
-      std::lock_guard<std::mutex> lk(mtx);
-      if (stop) {
-        throw std::runtime_error(
-            "Cannot enqueue work after stream is stopped.");
-      }
-      q.emplace(std::move(f));
-    }
-    cond.notify_one();
-  }
-};
+class StreamThread;
 
 class MLX_API Scheduler {
  public:
@@ -77,6 +30,8 @@ class MLX_API Scheduler {
   Scheduler& operator=(Scheduler&&) = delete;
 
   void enqueue(Stream s, std::function<void()> task);
+  void wait_event(Stream s, Event event, std::function<void(Event&)> task);
+  void signal_event(Stream s, Event event, std::function<void(Event&)> task);
 
   void notify_new_task(const Stream& stream) {
     {
@@ -111,6 +66,8 @@ class MLX_API Scheduler {
  private:
   friend Stream mlx::core::new_stream(Device d);
 
+  StreamThread& get_thread(Stream s);
+
   int n_active_tasks_{0};
   std::unordered_map<int, std::unique_ptr<StreamThread>> threads_;
   std::shared_mutex threads_mtx_;
@@ -121,8 +78,19 @@ class MLX_API Scheduler {
 MLX_API Scheduler& scheduler();
 
 template <typename F>
-void enqueue(const Stream& stream, F&& f) {
-  scheduler().enqueue(stream, std::forward<F>(f));
+inline void enqueue(Stream s, F&& f) {
+  scheduler().enqueue(s, std::forward<F>(f));
+}
+
+// Like enqueue but the task is used for processing the passed event.
+template <typename F>
+inline void wait_event(Stream s, Event event, F&& f) {
+  scheduler().wait_event(s, std::move(event), std::forward<F>(f));
+}
+
+template <typename F>
+inline void signal_event(Stream s, Event event, F&& f) {
+  scheduler().signal_event(s, std::move(event), std::forward<F>(f));
 }
 
 inline int n_active_tasks() {

@@ -427,6 +427,7 @@ class MLX_API array {
   }
 
   void detach_event() const {
+    array_desc_->event.check_error();
     array_desc_->event = Event{};
   }
 
