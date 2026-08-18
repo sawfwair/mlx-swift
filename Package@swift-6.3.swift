@@ -258,6 +258,7 @@ let cmlx = Target.target(
 
         // example code + mlx-c distributed
         "mlx-c/examples",
+        "mlx-c/mlx/c/compile.cpp",
         "mlx-c/mlx/c/distributed.cpp",
         "mlx-c/mlx/c/distributed_group.cpp",
 
