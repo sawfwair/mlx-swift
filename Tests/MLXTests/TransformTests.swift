@@ -7,6 +7,19 @@ import XCTest
 
 @testable import MLXOptimizers
 
+private final class CompileBenchmarkResults: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    func record() {
+        lock.withLock { value += 1 }
+    }
+
+    func read() -> Int {
+        lock.withLock { value }
+    }
+}
+
 class TransformTests: XCTestCase {
 
     override class func setUp() {
@@ -398,6 +411,67 @@ class TransformTests: XCTestCase {
         }
         XCTAssertEqual(results.count, 12)
         XCTAssertTrue(results.allSatisfy { $0 })
+    }
+
+    func testConcurrentCompiledCallOverheadMicrobench() throws {
+        guard ProcessInfo.processInfo.environment["MLX_SWIFT_BENCHMARK_COMPILE_CONCURRENCY"] == "1"
+        else {
+            throw XCTSkip("Set MLX_SWIFT_BENCHMARK_COMPILE_CONCURRENCY=1 to benchmark.")
+        }
+
+        let workers = 8
+        let iterations = 2_000
+        let ready = DispatchGroup()
+        let begin = DispatchSemaphore(value: 0)
+        let built = DispatchGroup()
+        let evaluate = DispatchSemaphore(value: 0)
+        let finished = DispatchGroup()
+        let results = CompileBenchmarkResults()
+        for worker in 0 ..< workers {
+            ready.enter()
+            built.enter()
+            finished.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                let bias = Float(worker + 1)
+                let function = compile { (x: MLXArray) in x + bias }
+                let input = MLXArray([Float](repeating: 1, count: 64))
+                eval(function(input))
+                ready.leave()
+                begin.wait()
+
+                var chained = input
+                for _ in 0 ..< iterations {
+                    chained = function(chained)
+                }
+                built.leave()
+                evaluate.wait()
+                eval(chained)
+                results.record()
+                finished.leave()
+            }
+        }
+
+        ready.wait()
+        let start = Date.timeIntervalSinceReferenceDate
+        for _ in 0 ..< workers {
+            begin.signal()
+        }
+        built.wait()
+        let buildSeconds = Date.timeIntervalSinceReferenceDate - start
+        for _ in 0 ..< workers {
+            evaluate.signal()
+        }
+        finished.wait()
+        let totalSeconds = Date.timeIntervalSinceReferenceDate - start
+        let calls = Double(workers * iterations)
+
+        print(
+            String(
+                format: "[compile-concurrency] build-wall=%.2fus/call total-wall=%.2fus/call",
+                buildSeconds * 1_000_000 / calls,
+                totalSeconds * 1_000_000 / calls
+            ))
+        XCTAssertEqual(results.read(), workers)
     }
 
     func testVmapThreadSafety() async throws {
