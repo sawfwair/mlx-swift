@@ -14,6 +14,54 @@ private actor StreamConcurrencyHarness {
 }
 
 final class StreamConcurrencyTests: XCTestCase {
+    func testReusableContextRetainsDefaultAndExplicitStreamsAfterSuspension() async {
+        let context = MLX.Stream.Context()
+        var previous: (MLX.Stream, MLX.Stream, MLX.Stream)?
+        for _ in 0..<100 {
+            let streams = await Stream.withDefaultStream(context) {
+                let streams = (
+                    StreamOrDevice.default.stream,
+                    StreamOrDevice.cpu.stream,
+                    StreamOrDevice.gpu.stream
+                )
+                let cpu = multiply(ones([3], stream: .cpu), 2, stream: .cpu)
+                let gpu = multiply(ones([3], stream: .gpu), 3, stream: .gpu)
+                await Task.yield()
+                XCTAssertEqual(StreamOrDevice.default.stream, streams.0)
+                XCTAssertEqual(cpu.asArray(Float.self), [2, 2, 2])
+                XCTAssertEqual(gpu.asArray(Float.self), [3, 3, 3])
+                return streams
+            }
+            if let previous {
+                XCTAssertEqual(streams.0, previous.0)
+                XCTAssertEqual(streams.1, previous.1)
+                XCTAssertEqual(streams.2, previous.2)
+            }
+            previous = streams
+            context.synchronize()
+        }
+    }
+
+    func testNestedReusableContextsRestoreStreamsAfterThrowing() async {
+        let outer = MLX.Stream.Context()
+        let inner = MLX.Stream.Context()
+        await Stream.withDefaultStream(outer) {
+            let original = StreamOrDevice.default.stream
+            do {
+                try await Stream.withDefaultStream(inner) {
+                    XCTAssertNotEqual(StreamOrDevice.default.stream, original)
+                    await Task.yield()
+                    throw CancellationError()
+                }
+                XCTFail("Expected cancellation")
+            } catch is CancellationError {
+                XCTAssertEqual(StreamOrDevice.default.stream, original)
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
     func testAsyncDefaultStreamGraphCanEvaluateOnDetachedThread() async {
         let graph = await Stream.withNewDefaultStream {
             let input = MLXArray([Float32(1), 2, 3])
