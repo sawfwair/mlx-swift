@@ -17,7 +17,7 @@ final class StreamConcurrencyTests: XCTestCase {
     func testReusableContextRetainsDefaultAndExplicitStreamsAfterSuspension() async {
         let context = MLX.Stream.Context()
         var previous: (MLX.Stream, MLX.Stream, MLX.Stream)?
-        for _ in 0..<100 {
+        for _ in 0 ..< 100 {
             let streams = await Stream.withDefaultStream(context) {
                 let streams = (
                     StreamOrDevice.default.stream,
