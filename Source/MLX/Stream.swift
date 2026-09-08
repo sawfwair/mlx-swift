@@ -99,6 +99,59 @@ public final class Stream: @unchecked Sendable, Equatable {
     @TaskLocal static var defaultCPUStream: Stream?
     @TaskLocal static var defaultGPUStream: Stream?
 
+    /// Reusable CPU and GPU streams for sequential asynchronous graph work.
+    ///
+    /// Keep one context per active operation, and reuse it for later operations
+    /// with ``Stream/withDefaultStream(_:isolation:_:)``. MLX retains backend streams
+    /// for the lifetime of the process, so creating a new context for every
+    /// request can accumulate command queues in a long-running server.
+    ///
+    /// The caller must serialize graph construction and evaluation on a context,
+    /// including evaluation of lazy arrays returned from an earlier operation.
+    public final class Context: Sendable {
+        fileprivate let cpu: Stream
+        fileprivate let gpu: Stream?
+        fileprivate let selected: Stream
+
+        /// Creates streams and selects the default device for unqualified work.
+        ///
+        /// - Parameter device: The device to select, or the current default device.
+        public init(device: Device? = nil) {
+            let device = device ?? Device.defaultDevice()
+            let cpu = Stream(threadUnsafe: .cpu)
+            let gpu = Stream.threadUnsafeStreamIfAvailable(.gpu)
+            self.cpu = cpu
+            self.gpu = gpu
+            switch device.deviceType {
+            case .cpu:
+                self.selected = cpu
+            case .gpu:
+                self.selected = gpu ?? Stream(threadUnsafe: .gpu)
+            default:
+                fatalError("Unexpected device type: \(device)")
+            }
+        }
+
+        /// Wait for submitted CPU and GPU work before reusing this context.
+        public func synchronize() {
+            cpu.synchronize()
+            gpu?.synchronize()
+        }
+    }
+
+    /// Use an existing context's task-local streams without allocating new ones.
+    public static func withDefaultStream<R>(
+        _ context: Context,
+        isolation _: isolated (any Actor)? = #isolation,
+        _ body: () async throws -> R
+    ) async rethrows -> R {
+        try await $defaultCPUStream.withValue(context.cpu) {
+            try await $defaultGPUStream.withValue(context.gpu) {
+                try await $defaultStream.withValue(context.selected, operation: body)
+            }
+        }
+    }
+
     /// Set the ``StreamOrDevice/default`` scoped to a Task.
     public static func withNewDefaultStream<R>(device: Device? = nil, _ body: () throws -> R)
         rethrows -> R
@@ -113,23 +166,7 @@ public final class Stream: @unchecked Sendable, Equatable {
         isolation _: isolated (any Actor)? = #isolation,
         _ body: () async throws -> R
     ) async rethrows -> R {
-        let device = device ?? Device.defaultDevice()
-        let cpuStream = Stream(threadUnsafe: .cpu)
-        let gpuStream = Stream.threadUnsafeStreamIfAvailable(.gpu)
-        let selectedStream: Stream
-        switch device.deviceType {
-        case .cpu:
-            selectedStream = cpuStream
-        case .gpu:
-            selectedStream = gpuStream ?? Stream(threadUnsafe: .gpu)
-        default:
-            fatalError("Unexpected device type: \(device)")
-        }
-        return try await $defaultCPUStream.withValue(cpuStream) {
-            try await $defaultGPUStream.withValue(gpuStream) {
-                try await $defaultStream.withValue(selectedStream, operation: body)
-            }
-        }
+        try await withDefaultStream(Context(device: device), body)
     }
 
     init(_ ctx: mlx_stream) {
