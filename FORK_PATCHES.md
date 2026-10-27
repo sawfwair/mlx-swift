@@ -51,3 +51,10 @@ and after this platform-only manifest correction.
 
 The core pin also includes the explicit dependent-type `typename` required
 by the downstream Linux CPU compiler. This changes no GPU source or shader.
+
+The generation-17 NAX guard now applies only to quantized dispatch in core.
+Floating-point matmul, attention, and gated delta use upstream availability.
+The Swift regression checks both FP16 and BF16 floating-point matmul and
+1/2/4/8-bit quantized matmul at the historical wide-output threshold.
+The Xcode fixture plan selects FP32 precision, matching the official core
+runner; production inference defaults remain unchanged.
