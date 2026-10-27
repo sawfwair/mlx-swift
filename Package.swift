@@ -44,6 +44,8 @@ let noMetalCmlxExcludes = [
     "mlx/mlx/backend/metal/utils.cpp",
     "mlx/mlx/backend/metal/kernels",
     "mlx/mlx/backend/metal/jit",
+    "mlx/mlx/backend/metal/cross_entropy.cpp",
+    "mlx/mlx/backend/metal/gated_delta_update.cpp",
 ]
 
 let noCudaCmlxExcludes = [

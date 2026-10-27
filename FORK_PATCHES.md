@@ -43,3 +43,8 @@ v0.32.4 on Apple platforms. The baseline manifest uses the matching upstream
 C distributed bindings and selects the conditional CPU-JIT wrapper once.
 Both manifest paths build on the local Swift 6.4 toolchain; that does not
 replace execution with an actual Swift 6.0 or Linux/CUDA toolchain.
+
+The Linux CLI integration additionally excludes the v0.32.4 Metal
+`cross_entropy.cpp` and `gated_delta_update.cpp` host implementations from
+CPU/CUDA SwiftPM builds. The evaluated Apple package is byte-identical before
+and after this platform-only manifest correction.
