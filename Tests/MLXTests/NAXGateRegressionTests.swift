@@ -7,13 +7,11 @@
 
 import Foundation
 import MLX
-import MLXRandom
 import XCTest
 
 class NAXGateRegressionTests: XCTestCase {
 
     override class func setUp() {
-        setDefaultDevice()
     }
 
     func testNAXThresholdMatmulMatchesReference() {

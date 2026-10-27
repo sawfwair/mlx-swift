@@ -7,7 +7,6 @@ import XCTest
 class FP8Tests: XCTestCase {
 
     override class func setUp() {
-        setDefaultDevice()
     }
 
     func testFromFP8DecodesE4M3Bytes() {
@@ -19,7 +18,7 @@ class FP8Tests: XCTestCase {
         XCTAssertEqual(decoded.shape, [256])
 
         let expected = MLXArray(allBytes.map { e4m3Value($0) })
-        assertEqual(decoded, expected)
+        XCTAssertTrue(decoded.allClose(expected, equalNaN: true).item(Bool.self))
     }
 
     func testToFP8EncodesE4M3Bytes() {
@@ -42,6 +41,10 @@ private func e4m3Value(_ value: UInt8) -> Float {
     let sign: Float = (value & 0x80) == 0 ? 1 : -1
     let exponent = Int((value >> 3) & 0x0F)
     let mantissa = Int(value & 0x07)
+
+    if exponent == 15 && mantissa == 7 {
+        return .nan
+    }
 
     if exponent == 0 {
         if mantissa == 0 {

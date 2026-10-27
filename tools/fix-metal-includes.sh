@@ -22,12 +22,18 @@ KERNELS_DIR="${CMLX_MLX_DIR}/${KERNELS_INCLUDE_PATH}"
 KERNEL_LIST=" \
 arg_reduce.metal \
 conv.metal \
-gemv.metal \
+dot.metal \
+gather_mm_offsets.metal \
+gated_delta_update.metal \
+gated_delta_update_vjp.metal \
+fence.metal \
 layer_norm.metal \
 random.metal \
 rms_norm.metal \
 rope.metal \
+searchsorted.metal \
 scaled_dot_product_attention.metal \
+scaled_dot_product_attention_vjp.metal \
 steel/attn/kernels/steel_attention.metal"
 
 # We fixup all the header files AND the listed kernel files
@@ -78,7 +84,13 @@ for src in ${HEADERS} ${KERNELS}; do
     if [ ! -e "$dest" ] || [ "$src" -nt "$dest" ]; then
         echo "${src} -> ${dest}"
         mkdir -p "$(dirname "${dest}")"
-        cp -p "${src}" "${dest}"
+        if [[ "$relative_path" == "fence.metal" ]]; then
+            # The fast-fence opt-in requires Metal 3.2. Keep baseline macOS 14
+            # shader builds valid; macOS 15+ bundles compile the real kernels.
+            { printf '#if __METAL_VERSION__ >= 320\n'; cat "$src"; printf '\n#endif\n'; } > "$dest"
+        else
+            cp -p "${src}" "${dest}"
+        fi
     else
         echo "Skipping $src (more recent destination)"
     fi

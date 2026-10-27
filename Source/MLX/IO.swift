@@ -36,7 +36,7 @@ public func save(array: MLXArray, url: URL, stream: StreamOrDevice = .default) t
     switch url.pathExtension {
     case "npy":
         _ = try withError {
-            _ = evalLock.withLock {
+            _ = withEvalLock {
                 mlx_save(path.cString(using: .utf8), array.ctx)
             }
         }
@@ -74,7 +74,7 @@ public func save(
     switch url.pathExtension {
     case "safetensors":
         _ = try withError {
-            _ = evalLock.withLock {
+            _ = withEvalLock {
                 mlx_save_safetensors(path.cString(using: .utf8), mlx_arrays, mlx_metadata)
             }
         }
@@ -210,49 +210,79 @@ private func new_mlx_io_vtable_dataIO() -> mlx_io_vtable {
 
         switch whence {
         case SEEK_SET:
+            if offset < 0 || offset > state.data.count {
+                return -1
+            }
             state.offset = Int(offset)
+            return 0
         case SEEK_CUR:
-            state.offset += Int(offset)
+            let proposed = state.offset &+ Int(offset)
+            if proposed < 0 || proposed > state.data.count {
+                return -1
+            }
+            state.offset = proposed
+            return 0
         case SEEK_END:
-            state.offset = state.data.count + Int(offset)
+            // offset is relative to the end of the data, not the current position.
+            // mlx's load_safetensors uses seek(0, end) + tell() to size the input.
+            let proposed = state.data.count &+ Int(offset)
+            if proposed < 0 || proposed > state.data.count {
+                return -1
+            }
+            state.offset = proposed
+            return 0
         default:
-            break
+            return -1
         }
     } read: { ptr, data, n in
         let state = Unmanaged<IOState>.fromOpaque(ptr!).takeUnretainedValue()
 
+        if n <= 0 || (n &+ state.offset < state.offset) {
+            return 0
+        }
+
         if n + state.offset <= state.data.count {
-            guard let data = data else { return }
+            guard let data = data else { return 0 }
             _ = state.data.withUnsafeBytes { buffer in
                 memcpy(data, buffer.baseAddress!.advanced(by: state.offset), n)
             }
             state.offset += n
+
+            return n
+        } else {
+            return 0
         }
 
     } read_at_offset: { ptr, data, n, offset in
         let state = Unmanaged<IOState>.fromOpaque(ptr!).takeUnretainedValue()
 
+        if n <= 0 || offset < 0 || (n &+ offset < offset) {
+            return 0
+        }
+
         if n + offset <= state.data.count {
-            guard let data = data else { return }
+            guard let data = data else { return 0 }
             _ = state.data.withUnsafeBytes { buffer in
                 memcpy(data, buffer.baseAddress!.advanced(by: offset), n)
             }
+            return n
+        } else {
+            return 0
         }
 
     } write: { ptr, data, n in
         let state = Unmanaged<IOState>.fromOpaque(ptr!).takeUnretainedValue()
-        guard let data else { return }
 
+        guard let data else { return 0 }
         let end = state.offset + n
         if end > state.data.count {
-            state.data.append(
-                contentsOf: repeatElement(UInt8.zero, count: end - state.data.count)
-            )
+            state.data.append(contentsOf: repeatElement(UInt8.zero, count: end - state.data.count))
         }
         _ = state.data.withUnsafeMutableBytes { buffer in
             memcpy(buffer.baseAddress!.advanced(by: state.offset), data, n)
         }
         state.offset = end
+        return n
 
     } label: { ptr in
         UnsafeRawPointer(label.utf8Start).assumingMemoryBound(to: Int8.self)
@@ -295,7 +325,7 @@ public func saveToData(
     defer { mlx_io_writer_free(writer) }
 
     _ = try withError {
-        _ = evalLock.withLock {
+        _ = withEvalLock {
             mlx_save_safetensors_writer(writer, mlx_arrays, mlx_metadata)
         }
     }

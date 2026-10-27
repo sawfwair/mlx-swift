@@ -13,6 +13,12 @@ extern "C" {
  */
 mlx_stream mlx_stream_new_thread_unsafe_device(mlx_device dev);
 
+/** Compile with cache identities retained across Swift executor hops. */
+int mlx_swift_detail_compile(mlx_closure* res, const mlx_closure fun,
+    uintptr_t fun_id, bool shapeless, const uint64_t* constants, size_t constants_num);
+/** Erase a Swift function from all of its originating thread-local caches. */
+int mlx_swift_detail_compile_erase(uintptr_t fun_id);
+
 #ifdef __cplusplus
 }
 #endif
@@ -26,9 +32,11 @@ mlx_stream mlx_stream_new_thread_unsafe_device(mlx_device dev);
 #include <Cmlx/mlx-distributed-distributed.h>
 #include <Cmlx/mlx-distributed-ops.h>
 #include <Cmlx/mlx-einsum.h>
+#include <Cmlx/mlx-error.h>
 #include <Cmlx/mlx-export.h>
 #include <Cmlx/mlx-fast.h>
 #include <Cmlx/mlx-fft.h>
+#include <Cmlx/mlx-graph_utils.h>
 #include <Cmlx/mlx-io.h>
 #include <Cmlx/mlx-linalg.h>
 #include <Cmlx/mlx-memory.h>

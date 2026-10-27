@@ -349,11 +349,11 @@ struct fp8_e4m3 {
   }
 
   operator float16_t() thread {
-    uint16_t v = (bits & 127) << 7;
-    half converted = as_type<half>(v);
-    converted *= 256.0;
-    auto sign = bits & 128;
-    return (sign ? -converted : converted);
+    uint16_t v = bits & 127;
+    uint16_t sign_bit = ((uint16_t)((bits >> 7) & 1)) << 15;
+    uint16_t u = (v << 7) | (((v + 1) >> 7) << 14) | sign_bit;
+    half converted = as_type<half>(u);
+    return converted * 256.0;
   }
 
   operator bfloat16_t() thread {
@@ -398,6 +398,17 @@ struct fp8_e8m0 {
   uint8_t bits;
 };
 
+// Smallest E8M0 >= x. Scales are amax/max_element, so rounding one down
+// leaves the block's largest elements outside the element range, where they
+// saturate. Matches the CUDA backend, which rounds up via cutlass ue8m0.
+inline float mx_scale_round_up(float x) {
+  fp8_e8m0 s(x);
+  if (s.bits < 0xFE && float(s) < x) {
+    s.bits += 1;
+  }
+  return float(s);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Contents from "mlx/backend/metal/kernels/unary_ops.h"
 ///////////////////////////////////////////////////////////////////////////////
@@ -435,7 +446,7 @@ struct Abs {
     return x;
   };
   complex64_t operator()(complex64_t x) thread {
-    return {metal::precise::sqrt(x.real * x.real + x.imag * x.imag), 0};
+    return {hypot(x.real, x.imag), 0};
   };
 };
 
@@ -708,7 +719,7 @@ struct Round {
 struct Sigmoid {
   template <typename T>
   T operator()(T x) thread {
-    auto y = 1 / (1 + metal::exp(metal::abs(x)));
+    auto y = 1 / (1 + metal::precise::exp(metal::abs(x)));
     return (x < 0) ? y : 1 - y;
   }
 };
@@ -725,8 +736,8 @@ struct Sign {
     if (x == complex64_t(0)) {
       return x;
     }
-    return x /
-        (complex64_t)metal::precise::sqrt(x.real * x.real + x.imag * x.imag);
+    auto r = hypot(x.real, x.imag);
+    return {x.real / r, x.imag / r};
   };
 };
 
@@ -778,7 +789,7 @@ struct Sqrt {
     auto b_abs = metal::precise::sqrt((r - x.real) / 2.0);
     auto b = metal::copysign(b_abs, x.imag);
     return {a, b};
-  }
+  };
 };
 
 struct Rsqrt {

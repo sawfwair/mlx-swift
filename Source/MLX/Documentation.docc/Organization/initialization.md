@@ -264,8 +264,8 @@ there are specific initializers to request it:
 - ``MLXArray/full(_:values:type:stream:)``
 - ``MLXArray/full(_:values:stream:)``
 - ``MLXArray/identity(_:type:stream:)``
-- ``MLXArray/linspace(_:_:count:stream:)-(Int,Int,Int,StreamOrDevice)``
-- ``MLXArray/linspace(_:_:count:stream:)-(Double,Double,Int,StreamOrDevice)``
+- ``MLXArray/linspace(_:_:count:dtype:stream:)-(Int,Int,Int,DType?,StreamOrDevice)``
+- ``MLXArray/linspace(_:_:count:dtype:stream:)-(Double,Double,Int,DType?,StreamOrDevice)``
 - ``MLXArray/repeated(_:count:axis:stream:)``
 - ``MLXArray/repeated(_:count:stream:)``
 - ``MLXArray/repeat(_:count:axis:stream:)``
@@ -275,15 +275,15 @@ there are specific initializers to request it:
 ### MLXArray Factory Free Methods
 
 - ``MLX/zeros(_:type:stream:)``
-- ``MLX/zeros(like:stream:)``
+- ``MLX/zeros(like:dtype:stream:)``
 - ``MLX/ones(_:type:stream:)``
-- ``MLX/ones(like:stream:)``
+- ``MLX/ones(like:dtype:stream:)``
 - ``MLX/eye(_:m:k:type:stream:)``
 - ``MLX/full(_:values:type:stream:)``
 - ``MLX/full(_:values:stream:)``
 - ``MLX/identity(_:type:stream:)``
-- ``MLX/linspace(_:_:count:stream:)-7vj0o``
-- ``MLX/linspace(_:_:count:stream:)-6w959``
+- ``linspace(_:_:count:endpoint:dtype:stream:)-2b6eu``
+- ``linspace(_:_:count:endpoint:dtype:stream:)-8k1d2``
 - ``MLXArray/repeated(_:count:axis:stream:)``
 - ``MLXArray/repeated(_:count:stream:)``
 - ``MLX/repeat(_:count:axis:stream:)``

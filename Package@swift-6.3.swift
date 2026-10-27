@@ -85,8 +85,10 @@ let noCudaCmlxExcludes = [
     "mlx/mlx/backend/cuda/delayload.cpp",
     "mlx/mlx/backend/cuda/device_info.cpp",
     "mlx/mlx/backend/cuda/device.cpp",
+    "mlx/mlx/backend/cuda/dirs.cpp",
     "mlx/mlx/backend/cuda/eval.cpp",
     "mlx/mlx/backend/cuda/fence.cpp",
+    "mlx/mlx/backend/cuda/fft.cu",
     "mlx/mlx/backend/cuda/indexing.cpp",
     "mlx/mlx/backend/cuda/jit_module.cpp",
     "mlx/mlx/backend/cuda/load.cpp",
@@ -132,16 +134,9 @@ let noCudaCmlxExcludes = [
                 "mlx-c/mlx/c/metal.cpp",
 
                 "mlx/mlx/backend/cuda/delayload.cpp",  // For Windows
-                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n16_m1.cu",
-                "mlx/mlx/backend/cuda/quantized/qmm/qmv.cu",
-                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n32_m1.cu",
-                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90.cuh",
-                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n64_m2.cu",
-                "mlx/mlx/backend/cuda/quantized/qmm/qmm.h",
-                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n256_m2.cu",
-                "mlx/mlx/backend/cuda/quantized/qmm/qmm.cu",
-                "mlx/mlx/backend/cuda/quantized/qmm/qmm_impl_sm90_m128_n128_m2.cu",
-                "mlx/mlx/backend/cuda/quantized/qmm/fp_qmv.cu",
+
+                // built by the CudaBuild plugin (nvcc), not by SwiftPM
+                "mlx/mlx/backend/cuda/quantized/qmm",
             ] + noMetalCmlxExcludes
 
         cxxSettings = [
@@ -210,7 +205,10 @@ let noCudaCmlxExcludes = [
 
     let platformExcludes: [String] =
         [
+            // selected conditionally by mlx-conditional -- these are #included by
+            // the wrappers there so they must not also be built directly
             "mlx/mlx/backend/cpu/compiled.cpp",
+            "mlx/mlx/backend/cpu/jit_compiler.cpp",
 
             // opt-out of these backends (using metal)
             "mlx/mlx/backend/no_gpu",
@@ -230,12 +228,6 @@ let noCudaCmlxExcludes = [
         .define("_METAL_"),
         .define("SWIFTPM_BUNDLE", to: "\"mlx-swift_Cmlx\""),
         .define("METAL_PATH", to: "\"default.metallib\""),
-
-        // Xcode 26.5 clang enforces consteval strictly enough that fmt
-        // 10.2.1's FMT_STRING compile-time checks fail to parse; define
-        // FMT_CONSTEVAL to empty to disable consteval (fmt falls back to
-        // runtime checking) until fmt is bumped.
-        .define("FMT_CONSTEVAL", to: ""),
     ]
 
     let linkerSettings: [LinkerSetting] = [
@@ -256,11 +248,8 @@ let cmlx = Target.target(
         // vendor docs
         "vendor-README.md",
 
-        // example code + mlx-c distributed
+        // example code
         "mlx-c/examples",
-        "mlx-c/mlx/c/compile.cpp",
-        "mlx-c/mlx/c/distributed.cpp",
-        "mlx-c/mlx/c/distributed_group.cpp",
 
         // vendored library, include header only
         "json",
@@ -292,6 +281,7 @@ let cmlx = Target.target(
         "mlx/python",
         "mlx/setup.py",
         "mlx/tests",
+        "mlx/build",
 
         // build variants (we are opting _out_ of these)
         "mlx/mlx/io/no_safetensors.cpp",
@@ -302,9 +292,9 @@ let cmlx = Target.target(
         "mlx/mlx/backend/metal/kernels",
         "mlx/mlx/backend/metal/nojit_kernels.cpp",
 
-        // do not build distributed support (yet)
+        // distributed backends: enable ring, disable MPI + NCCL + JACCL
         "mlx/mlx/distributed/mpi/mpi.cpp",
-        "mlx/mlx/distributed/ring/ring.cpp",
+        "mlx/mlx/distributed/ring/no_ring.cpp",
         "mlx/mlx/distributed/nccl/nccl.cpp",
         "mlx/mlx/distributed/jaccl/jaccl.cpp",
         "mlx/mlx/distributed/jaccl/lib",
@@ -319,7 +309,7 @@ let cmlx = Target.target(
         .headerSearchPath("mlx-c"),
         .headerSearchPath("json/single_include/nlohmann"),
         .headerSearchPath("fmt/include"),
-        .define("MLX_VERSION", to: "\"0.32.1\""),
+        .define("MLX_VERSION", to: "\"0.32.4\""),
     ],
     linkerSettings: linkerSettings,
     plugins: cudaBuildPlugins,
@@ -357,9 +347,16 @@ let package = Package(
         ),
 
         .target(
+            name: "cLogSupport",
+            path: "Source/cLogSupport",
+            publicHeadersPath: "include"
+        ),
+
+        .target(
             name: "MLX",
             dependencies: [
                 "Cmlx",
+                "cLogSupport",
                 .product(name: "Numerics", package: "swift-numerics"),
             ],
             exclude: mlxSwiftExcludes,
@@ -416,6 +413,12 @@ let package = Package(
                 "MLX", "MLXNN", "MLXOptimizers",
             ]
         ),
+        .testTarget(
+            name: "MLXIntegrationTests",
+            dependencies: [
+                "MLX", "MLXNN", "MLXOptimizers",
+            ]
+        ),
 
         // ------
         // Example programs
@@ -443,6 +446,18 @@ let package = Package(
             dependencies: ["MLX"],
             path: "Source/Examples",
             sources: ["CustomFunctionExampleSimple.swift"]
+        ),
+        // Deterministic reproduction of the CompiledFunction/evalLock
+        // lock-order inversion.  A wedged run deadlocks its threads
+        // permanently, so it is deliberately kept out of the test bundle and
+        // built as its own executable.
+        .executableTarget(
+            name: "CompileLockRepro",
+            dependencies: ["MLX"],
+            path: "Source/CompileLockRepro",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
         ),
     ] + cudaTargets,
     cxxLanguageStandard: .gnucxx20
