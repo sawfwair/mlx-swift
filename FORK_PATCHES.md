@@ -37,3 +37,9 @@ The FP8 byte-decoding fixture follows v0.32.4's corrected E4M3FN semantics:
 0x7f and 0xff decode to NaN, and 0x7e/0xfe remain finite. The generation-17
 NAX regression is included in the Xcode test target, alongside the owned
 stream/context and compile-cache regressions.
+
+Both Swift manifests exclude the additional CUDA host sources introduced by
+v0.32.4 on Apple platforms. The baseline manifest uses the matching upstream
+C distributed bindings and selects the conditional CPU-JIT wrapper once.
+Both manifest paths build on the local Swift 6.4 toolchain; that does not
+replace execution with an actual Swift 6.0 or Linux/CUDA toolchain.

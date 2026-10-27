@@ -107,6 +107,8 @@ let noCudaCmlxExcludes = [
     "mlx/mlx/backend/cuda/reduce",
     "mlx/mlx/backend/cuda/steel",
     "mlx/mlx/backend/cuda/unary",
+    "mlx/mlx/backend/cuda/cusolver_utils.cpp",
+    "mlx/mlx/backend/cuda/wddm.cpp",
 ]
 
 #if os(Linux)
@@ -134,6 +136,7 @@ let noCudaCmlxExcludes = [
                 "mlx-c/mlx/c/metal.cpp",
 
                 "mlx/mlx/backend/cuda/delayload.cpp",  // For Windows
+                "mlx/mlx/backend/cuda/wddm.cpp",  // For Windows
 
                 // built by the CudaBuild plugin (nvcc), not by SwiftPM
                 "mlx/mlx/backend/cuda/quantized/qmm",

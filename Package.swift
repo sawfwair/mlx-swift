@@ -76,6 +76,9 @@ let noCudaCmlxExcludes = [
     "mlx/mlx/backend/cuda/reduce",
     "mlx/mlx/backend/cuda/steel",
     "mlx/mlx/backend/cuda/unary",
+    "mlx/mlx/backend/cuda/cusolver_utils.cpp",
+    "mlx/mlx/backend/cuda/dirs.cpp",
+    "mlx/mlx/backend/cuda/wddm.cpp",
 ]
 
 #if os(Linux)
@@ -109,6 +112,7 @@ let noCudaCmlxExcludes = [
     let platformExcludes: [String] =
         [
             "mlx/mlx/backend/cpu/compiled.cpp",
+            "mlx/mlx/backend/cpu/jit_compiler.cpp",
             "mlx/mlx/backend/no_gpu",
             "mlx/mlx/backend/no_cpu",
             "mlx/mlx/backend/metal/no_metal.cpp",
@@ -143,8 +147,6 @@ let cmlx = Target.target(
     exclude: platformExcludes + [
         "vendor-README.md",
         "mlx-c/examples",
-        "mlx-c/mlx/c/distributed.cpp",
-        "mlx-c/mlx/c/distributed_group.cpp",
         "json",
         "fmt/test",
         "fmt/doc",
