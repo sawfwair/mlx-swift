@@ -48,3 +48,6 @@ The Linux CLI integration additionally excludes the v0.32.4 Metal
 `cross_entropy.cpp` and `gated_delta_update.cpp` host implementations from
 CPU/CUDA SwiftPM builds. The evaluated Apple package is byte-identical before
 and after this platform-only manifest correction.
+
+The core pin also includes the explicit dependent-type `typename` required
+by the downstream Linux CPU compiler. This changes no GPU source or shader.
