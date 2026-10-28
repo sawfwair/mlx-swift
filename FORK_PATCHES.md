@@ -67,3 +67,7 @@ command in `FORK_PATCHES.md`. The compile-cache bridge also drops an unused
 private umbrella include; it uses the public compile declaration and core
 compile-cache API directly. These host-only changes alter no generated Metal
 sources or inference arithmetic.
+
+Both Swift manifests exclude the C-binding standalone tests from the Cmlx
+library target. They remain available through the binding's opt-in CTest
+configuration and do not introduce an executable entry point into Swift apps.

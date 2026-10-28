@@ -150,6 +150,7 @@ let cmlx = Target.target(
         "vendor-README.md",
         "mlx-c/examples",
         "json",
+        "mlx-c/tests",
         "fmt/test",
         "fmt/doc",
         "fmt/support",
