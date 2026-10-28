@@ -14,7 +14,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ----------------------------- Configuration -----------------------------
 # note: mirrors a subset of MLX options exactly (1:1 mapping)
 
-option(MLX_BUILD_EXAMPLES "Build examples for mlx" ON)
+# note: MLX_BUILD_EXAMPLES is owned by mlx itself (see below), so the Swift
+# examples use their own option name to avoid colliding with mlx's C++ examples
+option(MLX_SWIFT_BUILD_EXAMPLES "Build Swift examples for mlx-swift" ON)
 option(MLX_BUILD_METAL "Build metal backend" ON)
 option(MLX_BUILD_CUDA "Build cuda backend" OFF)
 
@@ -43,31 +45,29 @@ endif()
 set(FETCHCONTENT_SOURCE_DIR_MLX "${MLX_SWIFT_MLX_SOURCE_DIR}")
 
 # mlx-c
-FetchContent_Declare(
-  mlx-c
-  SOURCE_DIR
-  "${MLX_SWIFT_MLX_C_SOURCE_DIR}")
+set(MLX_C_BUILD_EXAMPLES OFF)
+FetchContent_Declare(mlx-c SOURCE_DIR "${MLX_SWIFT_MLX_C_SOURCE_DIR}")
 FetchContent_MakeAvailable(mlx-c)
 
-# mlx v0.32.1 makes compile-cache erasure explicitly cache-scoped so a compiled
-# function can be released from a different thread safely.  mlx-c has not
-# adopted that API yet, so replace only its compile bridge locally.
-get_target_property(MLX_C_SOURCES mlxc SOURCES)
-list(FILTER MLX_C_SOURCES EXCLUDE REGEX
-     "[/\\\\]mlx[/\\\\]c[/\\\\]compile\\.cpp$")
-set_property(TARGET mlxc PROPERTY SOURCES ${MLX_C_SOURCES})
+# Track all originating thread-local caches for Swift executor-safe finalizers.
+# The standard mlx-c compile API remains available alongside this private
+# bridge.
 target_sources(
   mlxc PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source/Cmlx/mlx-swift-compile.cpp"
                "${CMAKE_CURRENT_SOURCE_DIR}/Source/Cmlx/mlx-swift-stream.cpp")
 
 # swift-numerics
-set(swift_numerics_patch git apply
-                         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/swift-numerics.patch)
+set(apply_patch ${CMAKE_COMMAND} -DREPO=<SOURCE_DIR>)
+set(apply_patch_script -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/apply-patch.cmake)
+set(swift_numerics_patch
+    ${apply_patch}
+    -DPATCH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/swift-numerics.patch
+    ${apply_patch_script})
 FetchContent_Declare(
   swift-numerics
   GIT_REPOSITORY "https://github.com/apple/swift-numerics.git"
   GIT_TAG "1.0.2"
-  PATCH_COMMAND ${swift_numerics_patch} || true)
+  PATCH_COMMAND ${swift_numerics_patch})
 FetchContent_MakeAvailable(swift-numerics)
 
 # MLX package
@@ -84,6 +84,21 @@ if(MLX_BUILD_CUDA)
            CUDNN::cudnn_all # Promoted from PRIVATE, required by mlx
   )
 endif()
+
+# cLogSupport package small C shim that exposes os_log_type_enabled() to Swift
+# (see #491)
+set(cLogSupport_include ${CMAKE_CURRENT_LIST_DIR}/Source/cLogSupport/include)
+set(cLogSupport_module_dir ${CMAKE_CURRENT_BINARY_DIR}/cLogSupport-module)
+file(
+  WRITE ${cLogSupport_module_dir}/module.modulemap
+  "module cLogSupport {\n    header \"${cLogSupport_include}/cLogSupport.h\"\n    export *\n}\n"
+)
+
+add_library(cLogSupport STATIC
+            ${CMAKE_CURRENT_LIST_DIR}/Source/cLogSupport/cLogSupport.c)
+target_include_directories(cLogSupport PUBLIC ${cLogSupport_include}
+                                              ${cLogSupport_module_dir})
+
 file(GLOB MLX-src ${CMAKE_CURRENT_LIST_DIR}/Source/MLX/*.swift)
 
 if(NOT MLX_BUILD_METAL)
@@ -99,7 +114,7 @@ add_library(MLX STATIC ${MLX-src})
 target_include_directories(MLX
                            PUBLIC ${CMAKE_CURRENT_LIST_DIR}/Source/Cmlx/include)
 # Note: mlxc is target name exported by mlx-c
-target_link_libraries(MLX PUBLIC mlxc Numerics)
+target_link_libraries(MLX PUBLIC mlxc Numerics cLogSupport)
 target_compile_options(MLX PRIVATE -package-name MLX)
 
 # MLXRandom package
@@ -134,7 +149,7 @@ add_library(MLXLinalg STATIC ${MLXLinalg-src})
 target_link_libraries(MLXLinalg PRIVATE MLX)
 
 # Examples
-if(MLX_BUILD_EXAMPLES)
+if(MLX_SWIFT_BUILD_EXAMPLES)
   add_executable(example1
                  ${CMAKE_CURRENT_LIST_DIR}/Source/Examples/Example1.swift)
   target_link_libraries(example1 PRIVATE MLX)

@@ -9,6 +9,13 @@
     }
   ],
   "defaultOptions" : {
+    "environmentVariableEntries" : [
+      {
+        "isEnabled" : true,
+        "key" : "MLX_ENABLE_TF32",
+        "value" : "0"
+      }
+    ],
     "performanceAntipatternCheckerEnabled" : true
   },
   "testTargets" : [
@@ -18,6 +25,13 @@
         "containerPath" : "container:MLX.xcodeproj",
         "identifier" : "C3AE8ECC2EAAA15F000BD280",
         "name" : "MLXTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:MLX.xcodeproj",
+        "identifier" : "C35E88D03054AACB00281871",
+        "name" : "MLXIntegrationTests"
       }
     }
   ],

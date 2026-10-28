@@ -9,7 +9,14 @@ final class CompiledFunction: @unchecked (Sendable) {
     /// unique (for the lifetime of the object) identifier for the compiled function
     private var id: UInt!
 
-    let lock = NSLock()
+    /// guards the observed state (``inputs`` / ``outputs``) -- see #226
+    ///
+    /// This is always acquired *inside* `evalLock`; see ``call(_:)`` for the
+    /// ordering rule.  It is recursive because a compiled function's body can
+    /// legitimately re-enter that same compiled function on the same thread
+    /// while it is being traced (a nested call with tracer inputs bypasses the
+    /// cache and simply runs the body again).
+    let lock = NSRecursiveLock()
 
     /// the function to compile
     let f: ([MLXArray]) -> [MLXArray]
@@ -32,13 +39,29 @@ final class CompiledFunction: @unchecked (Sendable) {
     }
 
     deinit {
-        // remove the compiled structure from the back end
-        mlx_detail_compile_erase(id)
+        let functionID = id!
+        withEvalLock {
+            #if DEBUG
+                EvalLockOwnership.requireHeldByCurrentThread("compile cache erase")
+                EvalLockOwnership.recordCompileErase()
+            #endif
+            // Erase from every originating thread-local cache, even if Swift
+            // releases this function on a different executor thread.
+            mlx_swift_detail_compile_erase(functionID)
+        }
     }
 
     func call(_ arguments: [MLXArray]) -> [MLXArray] {
-        lock.withLock {
-            innerCall(arguments)
+        // MLX 0.32.4 keeps tracing and caches thread-local. Stateless calls
+        // have no mutable Swift state to guard and can compile concurrently.
+        if inputs.isEmpty && outputs.isEmpty {
+            return innerCall(arguments)
+        }
+        return withEvalLock {
+            #if DEBUG
+                EvalLockOwnership.requireHeldByCurrentThread("compiled state lock")
+            #endif
+            return lock.withLock { innerCall(arguments) }
         }
     }
 
@@ -86,11 +109,10 @@ final class CompiledFunction: @unchecked (Sendable) {
 
         // note: this will use the cached compile (via the id)
         // but will be able to re-evaluate with fresh state if needed
-        // MLX v0.32.1 keeps compile caches thread-local and makes erasure
-        // cache-scoped. `self.lock` already serializes this compiled function,
-        // so unrelated compiled functions no longer need the global eval lock.
+        // Stateful calls hold evalLock; stateless calls use MLX's thread-local
+        // compiler caches without serializing unrelated compiled functions.
         var compiled = mlx_closure_new()
-        let compileStatus = mlx_detail_compile(&compiled, innerClosure, id, shapeless, [], 0)
+        let compileStatus = mlx_swift_detail_compile(&compiled, innerClosure, id, shapeless, [], 0)
         defer {
             mlx_closure_free(compiled)
         }

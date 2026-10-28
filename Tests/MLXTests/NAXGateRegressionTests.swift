@@ -1,19 +1,12 @@
-// Regression guard for the generation-17 NAX steel-gemm/qmm miscompute.
-//
-// The owned MLX fork gates NAX to GPU generation 18+ because the generation-17
-// NAX matmul path returns wrong results for fp16 GEMM at M >= 8, N >= 8192 (and
-// quantized matmul at M >= 64, N >= 9216). If that gate regresses, this shape
-// diverges sharply from the fp32 reference.
+// Floating-point NAX stays available; quantized dispatch owns its workaround.
 
 import Foundation
 import MLX
-import MLXRandom
 import XCTest
 
 class NAXGateRegressionTests: XCTestCase {
 
     override class func setUp() {
-        setDefaultDevice()
     }
 
     func testNAXThresholdMatmulMatchesReference() {
@@ -26,18 +19,45 @@ class NAXGateRegressionTests: XCTestCase {
         let b = MLXRandom.normal([k, n])
 
         let reference = a.matmul(b)
-        let actual = a.asType(.float16).matmul(b.asType(.float16)).asType(.float32)
+        for dtype: DType in [.float16, .bfloat16] {
+            let actual = a.asType(dtype).matmul(b.asType(dtype)).asType(.float32)
+            let difference = actual - reference
+            let differenceFrobenius = (difference * difference).sum().sqrt().item(Float.self)
+            let referenceFrobenius = (reference * reference).sum().sqrt().item(Float.self)
+            let relativeError = differenceFrobenius / referenceFrobenius
 
-        let difference = actual - reference
-        let differenceFrobenius = (difference * difference).sum().sqrt().item(Float.self)
-        let referenceFrobenius = (reference * reference).sum().sqrt().item(Float.self)
-        let relativeError = differenceFrobenius / referenceFrobenius
-
-        XCTAssertLessThan(
-            relativeError,
-            0.05,
-            "fp16 NAX-threshold matmul relative error \(relativeError) exceeds 0.05; "
-                + "check the generation-18 gate in is_nax_available()"
-        )
+            XCTAssertLessThan(
+                relativeError,
+                0.05,
+                "\(dtype) NAX-threshold matmul relative error \(relativeError) exceeds 0.05"
+            )
+        }
     }
+
+    func testQuantizedNAXThresholdMatchesReference() {
+        MLXRandom.seed(1729)
+        for dtype: DType in [.float16, .bfloat16] {
+            for bits in [1, 2, 4, 8] {
+                let x = MLXRandom.normal([64, 512]).asType(dtype)
+                let w = MLXRandom.normal([9216, 512]).asType(dtype)
+                let (packed, scales, biases) = quantized(w, groupSize: 128, bits: bits)
+                let restored = dequantized(
+                    packed, scales: scales, biases: biases, groupSize: 128,
+                    bits: bits, dtype: .float32)
+                let reference = matmul(x.asType(.float32), restored.T)
+                let actual = quantizedMM(
+                    x, packed, scales: scales, biases: biases,
+                    groupSize: 128, bits: bits
+                ).asType(.float32)
+                let difference = actual - reference
+                let relativeError =
+                    ((difference * difference).sum() / (reference * reference).sum()).sqrt().item(
+                        Float.self)
+                XCTAssertLessThan(
+                    relativeError, 1e-2,
+                    "\(dtype) \(bits)-bit threshold matmul relative error \(relativeError)")
+            }
+        }
+    }
+
 }

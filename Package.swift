@@ -44,6 +44,8 @@ let noMetalCmlxExcludes = [
     "mlx/mlx/backend/metal/utils.cpp",
     "mlx/mlx/backend/metal/kernels",
     "mlx/mlx/backend/metal/jit",
+    "mlx/mlx/backend/metal/cross_entropy.cpp",
+    "mlx/mlx/backend/metal/gated_delta_update.cpp",
 ]
 
 let noCudaCmlxExcludes = [
@@ -76,6 +78,9 @@ let noCudaCmlxExcludes = [
     "mlx/mlx/backend/cuda/reduce",
     "mlx/mlx/backend/cuda/steel",
     "mlx/mlx/backend/cuda/unary",
+    "mlx/mlx/backend/cuda/cusolver_utils.cpp",
+    "mlx/mlx/backend/cuda/dirs.cpp",
+    "mlx/mlx/backend/cuda/wddm.cpp",
 ]
 
 #if os(Linux)
@@ -109,6 +114,7 @@ let noCudaCmlxExcludes = [
     let platformExcludes: [String] =
         [
             "mlx/mlx/backend/cpu/compiled.cpp",
+            "mlx/mlx/backend/cpu/jit_compiler.cpp",
             "mlx/mlx/backend/no_gpu",
             "mlx/mlx/backend/no_cpu",
             "mlx/mlx/backend/metal/no_metal.cpp",
@@ -143,10 +149,8 @@ let cmlx = Target.target(
     exclude: platformExcludes + [
         "vendor-README.md",
         "mlx-c/examples",
-        "mlx-c/mlx/c/compile.cpp",
-        "mlx-c/mlx/c/distributed.cpp",
-        "mlx-c/mlx/c/distributed_group.cpp",
         "json",
+        "mlx-c/tests",
         "fmt/test",
         "fmt/doc",
         "fmt/support",
@@ -190,7 +194,7 @@ let cmlx = Target.target(
         .headerSearchPath("mlx-c"),
         .headerSearchPath("json/single_include/nlohmann"),
         .headerSearchPath("fmt/include"),
-        .define("MLX_VERSION", to: "\"0.32.1\""),
+        .define("MLX_VERSION", to: "\"0.32.4\""),
     ],
     linkerSettings: linkerSettings
 )
@@ -216,6 +220,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-numerics", from: "1.0.0")
     ],
     targets: [
+        .target(name: "cLogSupport", path: "Source/cLogSupport", publicHeadersPath: "include"),
         cmlx,
         .testTarget(
             name: "CmlxTests",
@@ -225,6 +230,7 @@ let package = Package(
             name: "MLX",
             dependencies: [
                 "Cmlx",
+                "cLogSupport",
                 .product(name: "Numerics", package: "swift-numerics"),
             ],
             exclude: mlxSwiftExcludes,
@@ -280,6 +286,9 @@ let package = Package(
                 "MLX", "MLXNN", "MLXOptimizers",
             ]
         ),
+        .testTarget(name: "MLXIntegrationTests", dependencies: ["MLX", "MLXNN", "MLXOptimizers"]),
+        .executableTarget(
+            name: "CompileLockRepro", dependencies: ["MLX"], path: "Source/CompileLockRepro"),
         .executableTarget(
             name: "Example1",
             dependencies: ["MLX"],
