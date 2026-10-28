@@ -101,7 +101,7 @@ class CmlxTests: XCTestCase {
                     mlx_closure_free(compiled)
                 }
 
-                var status = mlx_detail_compile(
+                var status = mlx_swift_detail_compile(
                     &compiled, function, functionID, false, nil, 0)
                 if status == 0 {
                     status = mlx_closure_apply(&output, compiled, inputs)
@@ -119,7 +119,7 @@ class CmlxTests: XCTestCase {
             }
             statuses.append(compileAndApply())
 
-            mlx_detail_compile_erase(functionID)
+            mlx_swift_detail_compile_erase(functionID)
             mlx_closure_free(function)
             mlx_vector_array_free(inputs)
             mlx_array_free(inputArray)
@@ -127,7 +127,7 @@ class CmlxTests: XCTestCase {
         }.start()
 
         XCTAssertEqual(firstTraceFinished.wait(timeout: .now() + 10), .success)
-        XCTAssertEqual(mlx_detail_compile_erase(functionID), 0)
+        XCTAssertEqual(mlx_swift_detail_compile_erase(functionID), 0)
         cacheWasErased.signal()
         wait(for: [workerFinished], timeout: 10)
 
