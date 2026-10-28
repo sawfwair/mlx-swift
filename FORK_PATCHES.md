@@ -58,3 +58,12 @@ The Swift regression checks both FP16 and BF16 floating-point matmul and
 1/2/4/8-bit quantized matmul at the historical wide-output threshold.
 The Xcode fixture plan selects FP32 precision, matching the official core
 runner; production inference defaults remain unchanged.
+
+The mlx-c pin advances from the matching upstream cutoff above to the owned
+portable-I/O patch. Its five error-message formatting calls use string
+construction, preserving their diagnostics on Ubuntu 22.04's libstdc++ without
+requiring `std::format`. The C-binding fork records its cutoff and regression
+command in `FORK_PATCHES.md`. The compile-cache bridge also drops an unused
+private umbrella include; it uses the public compile declaration and core
+compile-cache API directly. These host-only changes alter no generated Metal
+sources or inference arithmetic.

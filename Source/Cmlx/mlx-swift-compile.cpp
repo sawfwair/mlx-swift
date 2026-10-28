@@ -2,7 +2,6 @@
 
 #include "mlx/c/compile.h"
 #include "mlx/c/error.h"
-#include "mlx/c/private/mlx.h"
 #include "mlx/compile_impl.h"
 
 #include <algorithm>
