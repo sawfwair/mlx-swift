@@ -60,4 +60,23 @@ class NAXGateRegressionTests: XCTestCase {
         }
     }
 
+    func testWideHeadAttentionJITMatchesReference() {
+        MLXRandom.seed(42)
+        let scale: Float = 1 / sqrt(256)
+        for dtype: DType in [.float16, .bfloat16] {
+            let q = MLXRandom.normal([1, 2, 65, 256]).asType(dtype)
+            let k = MLXRandom.normal([1, 2, 97, 256]).asType(dtype)
+            let v = MLXRandom.normal([1, 2, 97, 256]).asType(dtype)
+            let scores = matmul(q.asType(.float32) * scale, k.asType(.float32).swappedAxes(-1, -2))
+            let reference = matmul(softmax(scores, axis: -1), v.asType(.float32))
+            let actual = MLXFast.scaledDotProductAttention(
+                queries: q, keys: k, values: v, scale: scale,
+                mask: Optional<MLXArray>.none, forceFused: true
+            ).asType(.float32)
+
+            XCTAssertEqual(actual.shape, reference.shape)
+            XCTAssertLessThan(abs(actual - reference).max().item(Float.self), 1e-2)
+        }
+    }
+
 }
